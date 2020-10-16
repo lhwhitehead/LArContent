@@ -120,14 +120,21 @@ void CosmicRayTaggingTool::FindAmbiguousPfos(const PfoList &parentCosmicRayPfos,
     PfoToBoolMap pfoToIsContainedMap;
     this->CheckIfContained(candidates, pfoToIsContainedMap );
 
+    // This vector contains maps for different, but complete, cosmic tagging approaches. 
+    std::vector<PfoToBoolMap> cosmicTaggingPfoMaps;
     PfoToBoolMap pfoToIsTopToBottomMap;
     this->CheckIfTopToBottom(candidates, pfoToIsTopToBottomMap);
+    cosmicTaggingPfoMaps.push_back(pfoToIsTopToBottomMap);
+
+    PfoToBoolMap pfoToIsSteepAndStraightMap;
+    this->CheckIfSteepAndStraight(candidates, pfoToIsSteepAndStraightMap);
+    cosmicTaggingPfoMaps.push_back(pfoToIsSteepAndStraightMap);
 
     UIntSet neutrinoSliceSet;
     this->GetNeutrinoSlices(candidates, pfoToInTimeMap, pfoToIsContainedMap, neutrinoSliceSet);
 
     PfoToBoolMap pfoToIsLikelyCRMuonMap;
-    this->TagCRMuons(candidates, pfoToInTimeMap, pfoToIsTopToBottomMap, neutrinoSliceSet, pfoToIsLikelyCRMuonMap);
+    this->TagCRMuons(candidates, pfoToInTimeMap, cosmicTaggingPfoMaps, neutrinoSliceSet, pfoToIsLikelyCRMuonMap);
 
     for (const ParticleFlowObject *const pPfo : parentCosmicRayPfos)
     {
@@ -447,12 +454,32 @@ void CosmicRayTaggingTool::CheckIfTopToBottom(const CRCandidateList &candidates,
 {
     for (const CRCandidate &candidate : candidates)
     {
-        const float upperY((candidate.m_endPoint1.GetY() > candidate.m_endPoint2.GetY()) ? candidate.m_endPoint1.GetY() : candidate.m_endPoint2.GetY());
-        const float lowerY((candidate.m_endPoint1.GetY() < candidate.m_endPoint2.GetY()) ? candidate.m_endPoint1.GetY() : candidate.m_endPoint2.GetY());
-
-        const bool isTopToBottom((upperY > m_face_Yt - m_marginY) && (lowerY < m_face_Yb + m_marginY));
+        bool isTopToBottom(false);
+        if (candidate.m_canFit)
+        {
+            const float upperY((candidate.m_endPoint1.GetY() > candidate.m_endPoint2.GetY()) ? candidate.m_endPoint1.GetY() : candidate.m_endPoint2.GetY());
+            const float lowerY((candidate.m_endPoint1.GetY() < candidate.m_endPoint2.GetY()) ? candidate.m_endPoint1.GetY() : candidate.m_endPoint2.GetY());
+    
+            isTopToBottom = ((upperY > m_face_Yt - m_marginY) && (lowerY < m_face_Yb + m_marginY));
+        }
 
         if (!pfoToIsTopToBottomMap.insert(PfoToBoolMap::value_type(candidate.m_pPfo, isTopToBottom)).second)
+            throw StatusCodeException(STATUS_CODE_ALREADY_PRESENT);
+    }
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+void CosmicRayTaggingTool::CheckIfSteepAndStraight(const CRCandidateList &candidates, PfoToBoolMap &pfoToIsSteepAndStraightMap) const
+{   
+    for (const CRCandidate &candidate : candidates)
+    {   
+        bool isSteepAndStraight(false);
+        if (candidate.m_canFit)
+            isSteepAndStraight = (candidate.m_theta > m_minCosmicCosTheta) &&
+                                 (candidate.m_curvature < m_maxCosmicCurvature);
+        
+        if (!pfoToIsSteepAndStraightMap.insert(PfoToBoolMap::value_type(candidate.m_pPfo, isSteepAndStraight)).second)
             throw StatusCodeException(STATUS_CODE_ALREADY_PRESENT);
     }
 }
@@ -488,14 +515,26 @@ void CosmicRayTaggingTool::GetNeutrinoSlices(const CRCandidateList &candidates, 
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
-void CosmicRayTaggingTool::TagCRMuons(const CRCandidateList &candidates, const PfoToBoolMap &pfoToInTimeMap, const PfoToBoolMap &pfoToIsTopToBottomMap,
+void CosmicRayTaggingTool::TagCRMuons(const CRCandidateList &candidates, const PfoToBoolMap &pfoToInTimeMap, const std::vector<PfoToBoolMap> &cosmicTaggingPfoMaps,
     const UIntSet &neutrinoSliceSet, PfoToBoolMap &pfoToIsLikelyCRMuonMap) const
 {
     for (const CRCandidate &candidate : candidates)
     {
-        const bool likelyCRMuon(!neutrinoSliceSet.count(candidate.m_sliceId) && (!pfoToInTimeMap.at(candidate.m_pPfo) || (candidate.m_canFit &&
-            (pfoToIsTopToBottomMap.at(candidate.m_pPfo) || ((candidate.m_theta > m_minCosmicCosTheta) && (candidate.m_curvature < m_maxCosmicCurvature)))) ));
+        bool likelyCRMuon(!neutrinoSliceSet.count(candidate.m_sliceId) && (!pfoToInTimeMap.at(candidate.m_pPfo)));
 
+        // If the above is false, check the other tagging methods
+        if (!likelyCRMuon)
+        {
+            for (auto const &taggingMethodMap : cosmicTaggingPfoMaps)
+            {
+                if (taggingMethodMap.at(candidate.m_pPfo))
+                {
+                    likelyCRMuon = true;
+                    // Only one method needs to be true, so break out of the loop
+                    break;
+                }
+            }
+        }
         if (!pfoToIsLikelyCRMuonMap.insert(PfoToBoolMap::value_type(candidate.m_pPfo, likelyCRMuon)).second)
             throw StatusCodeException(STATUS_CODE_ALREADY_PRESENT);
     }

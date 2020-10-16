@@ -155,6 +155,14 @@ private:
      */
     void CheckIfTopToBottom(const CRCandidateList &candidates, PfoToBoolMap &pfoToIsTopToBottomMap) const;
 
+    /**
+     *  @brief  Check if each candidate is steep (large in theta) and has low curvature
+     *
+     *  @param  candidates input list of candidates
+     *  @param  pfoToIsSteepAndStraightMap output mapping between candidates Pfos and if they are steep and straight
+     */
+    void CheckIfSteepAndStraight(const CRCandidateList &candidates, PfoToBoolMap &pfoToIsSteepAndStraightMap) const;
+
     typedef std::set<unsigned int> UIntSet;
     typedef std::unordered_map<int, bool> IntBoolMap;
 
@@ -178,7 +186,7 @@ private:
      *  @param  neutrinoSliceSet input set of slice indices containing a likely neutrino Pfo
      *  @param  pfoToIsLikelyCRMuonMap to receive the output mapping between Pfos and a boolean deciding if they are likely a CR muon
      */
-    void TagCRMuons(const CRCandidateList &candidates, const PfoToBoolMap &pfoToInTimeMap, const PfoToBoolMap &pfoToIsTopToBottomMap,
+    void TagCRMuons(const CRCandidateList &candidates, const PfoToBoolMap &pfoToInTimeMap, const std::vector<PfoToBoolMap> &cosmicTaggingPfoMaps,
         const UIntSet &neutrinoSliceSet, PfoToBoolMap &pfoToIsLikelyCRMuonMap) const;
 
     pandora::StatusCode ReadSettings(const pandora::TiXmlHandle xmlHandle);
