@@ -520,9 +520,10 @@ void CosmicRayTaggingTool::TagCRMuons(const CRCandidateList &candidates, const P
 {
     for (const CRCandidate &candidate : candidates)
     {
-        bool likelyCRMuon(!neutrinoSliceSet.count(candidate.m_sliceId) && (!pfoToInTimeMap.at(candidate.m_pPfo)));
+        const bool likelyNeutrino(neutrinoSliceSet.count(candidate.m_sliceId));
 
-        // If the above is false, check the other tagging methods
+        bool likelyCRMuon(!pfoToInTimeMap.at(candidate.m_pPfo));
+        // If the candidate isn't out of time with the beam then check for other tagging successes
         if (!likelyCRMuon)
         {
             for (auto const &taggingMethodMap : cosmicTaggingPfoMaps)
@@ -530,15 +531,17 @@ void CosmicRayTaggingTool::TagCRMuons(const CRCandidateList &candidates, const P
                 if (taggingMethodMap.at(candidate.m_pPfo))
                 {
                     likelyCRMuon = true;
-                    // Only one method needs to be true, so break out of the loop
                     break;
                 }
             }
         }
-        if (!pfoToIsLikelyCRMuonMap.insert(PfoToBoolMap::value_type(candidate.m_pPfo, likelyCRMuon)).second)
+        if (!pfoToIsLikelyCRMuonMap.insert(PfoToBoolMap::value_type(candidate.m_pPfo, !likelyNeutrino && likelyCRMuon)).second)
             throw StatusCodeException(STATUS_CODE_ALREADY_PRESENT);
     }
 }
+
+//const bool likelyCRMuon(!neutrinoSliceSet.count(candidate.m_sliceId) && (!pfoToInTimeMap.at(candidate.m_pPfo) || (candidate.m_canFit &&
+//            (pfoToIsTopToBottomMap.at(candidate.m_pPfo) || ((candidate.m_theta > m_minCosmicCosTheta) && (candidate.m_curvature < m_maxCosmicCurvature)))) ));
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------------------------------------------------
