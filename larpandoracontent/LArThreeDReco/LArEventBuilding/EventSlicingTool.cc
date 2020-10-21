@@ -53,7 +53,11 @@ EventSlicingTool::EventSlicingTool() :
     m_coneBoundedFraction1(0.5f),
     m_coneTanHalfAngle2(0.75f),
     m_coneBoundedFraction2(0.75f),
-    m_use3DProjectionsInHitPickUp(true)
+    m_use3DProjectionsInHitPickUp(true),
+    m_useSliceSplit(true),
+    m_sliceSplitTrackMaxDistance(50.),
+    m_sliceSplitShowerMaxDistance(100.),
+    m_sliceSplitVertexMaxDistance(10.)
 {
 }
 
@@ -91,7 +95,11 @@ void EventSlicingTool::RunSlicing(const Algorithm *const pAlgorithm, const HitTy
         ClusterList remainingClusters;
         this->GetRemainingClusters(pAlgorithm, clusterListNames, assignedClusters, remainingClusters);
 
+        //std::cout << "Total of " << remainingClusters.size() << " clusters to have their hits added to slices" << std::endl;
+
         this->AssignRemainingHitsToSlices(remainingClusters, clusterToSliceIndexMap, sliceList);
+
+        //std::cout << "Final number of slices = " << sliceList.size() << std::endl;
     }
 }
 
@@ -145,6 +153,12 @@ void EventSlicingTool::GetThreeDClusters(const Algorithm *const pAlgorithm, cons
     {
         ClusterList pfoClusters3D;
         LArPfoHelper::GetThreeDClusterList(pPfo, pfoClusters3D);
+
+        if (pPfo->GetDaughterPfoList().size() > 0)
+            std::cout << "Pfo " << pPfo << " has at least one daughter" << std::endl;
+        
+        if (pfoClusters3D.size() > 1)
+            std::cout << "Pfo " << pPfo << " has at least two clusters" << std::endl;
 
         for (const Cluster *const pCluster3D : pfoClusters3D)
         {
@@ -204,7 +218,14 @@ void EventSlicingTool::GetClusterSliceList(const ClusterList &trackClusters3D, c
 
         ClusterVector &clusterSlice(clusterSliceList.back());
         this->CollectAssociatedClusters(pCluster3D, sortedClusters3D, trackFitResults, showerConeFitResults, clusterSlice, usedClusters);
+
+        //std::cout << "Slice has " << clusterSlice.size() << " clusters" << std::endl;
+
+        if (m_useSliceSplit)
+          this->CheckAndDivideSlice(clusterSlice,usedClusters, trackFitResults, showerConeFitResults);
     }
+
+    //std::cout << "Used " << usedClusters.size() << " / " << sortedClusters3D.size() << " clusters" << std::endl;
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------
@@ -233,6 +254,217 @@ void EventSlicingTool::CollectAssociatedClusters(const Cluster *const pClusterIn
 
     for (const Cluster *const pAddedCluster : addedClusters)
         this->CollectAssociatedClusters(pAddedCluster, candidateClusters, trackFitResults, showerConeFitResults, clusterSlice, usedClusters);
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+void EventSlicingTool::CheckAndDivideSlice(pandora::ClusterVector &sliceClusters, pandora::ClusterSet &usedClusters, const ThreeDSlidingFitResultMap &trackFitResults, const ThreeDSlidingConeFitResultMap &showerConeFitResults) const
+{
+    //std::cout << "===== Checking slice with primary cluster " << sliceClusters.at(0) << " with " << sliceClusters.at(0)->GetOrderedCaloHitList().size() << " hits" << std::endl;
+
+    // The above will miss slices with two hierarchies, so tackle that now
+    const unsigned int origSize = sliceClusters.size();
+    this->RemoveDistantHierarchy(sliceClusters,usedClusters,trackFitResults,showerConeFitResults);
+    if(origSize != sliceClusters.size()){
+        std::cout << "We made a change to this slice." << std::endl;
+    }
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+void EventSlicingTool::RemoveDistantHierarchy(pandora::ClusterVector &sliceClusters, pandora::ClusterSet &usedClusters, const ThreeDSlidingFitResultMap &trackFitResults, const ThreeDSlidingConeFitResultMap &showerConeFitResults) const
+{
+    if (2 > sliceClusters.size())
+        return;
+
+    // Get the cluster extremes first to avoid multiple calls
+    std::map<const Cluster*,std::vector<pandora::CartesianVector>> clusterVerticesMap;
+    for (const Cluster *const pCluster : sliceClusters)
+    {
+        if (clusterVerticesMap.find(pCluster) == clusterVerticesMap.end())
+        {
+            std::vector<pandora::CartesianVector> vertices;
+            this->GetClusterExtremes(pCluster,trackFitResults,showerConeFitResults,vertices);
+            clusterVerticesMap.insert(std::make_pair(pCluster,vertices));
+        }
+    }
+
+    std::map<const Cluster*,std::map<const Cluster*,float>> clusterDistanceMap;
+    std::map<const Cluster*,std::vector<const Cluster*>> closestClusters;
+    for (const Cluster *const pCluster1 : sliceClusters)
+    {
+        std::map<const Cluster*,float> cluster1Distances;
+        const std::vector<pandora::CartesianVector> cluster1Vertices = clusterVerticesMap.at(pCluster1);
+
+//        for (const Cluster *const pCluster2 : sliceClusters)
+        closestClusters.insert(std::make_pair(pCluster1,std::vector<const Cluster*>()));          
+        for (unsigned int c = 0; c < sliceClusters.size(); ++c)
+        {
+            const Cluster *pCluster2 = sliceClusters.at(c);
+            if (pCluster1 == pCluster2)
+                continue;
+
+            const std::vector<pandora::CartesianVector> cluster2Vertices = clusterVerticesMap.at(pCluster2);
+            // Get the minimum distance between the vertices
+            float minDist = std::numeric_limits<float>::max();
+            for (auto const &v1 : cluster1Vertices)
+            {
+                for (auto const &v2 : cluster2Vertices)
+                {
+                    const float dist = (v1-v2).GetMagnitude();
+                    if (dist < minDist)
+                        minDist = dist;       
+                }
+            }
+            cluster1Distances.insert(std::make_pair(pCluster2,minDist));
+
+            const float vtxApp = this->GetClosestApproachToVertex(cluster2Vertices,pCluster1);
+            if (vtxApp < m_sliceSplitVertexMaxDistance)
+            {
+                closestClusters.at(pCluster1).push_back(pCluster2);
+            }
+        }
+        clusterDistanceMap.insert(std::make_pair(pCluster1,cluster1Distances));
+        //std::cout << "Cluster " << pCluster1 << " at (" << cluster1Vertices.at(0).GetX() << ", " << cluster1Vertices.at(0).GetZ() << ") " << " with " << pCluster1->GetOrderedCaloHitList().size() << " hits has " << closestClusters.at(pCluster1).size() << " clusters with vertices within " << m_sliceSplitVertexMaxDistance << " cm of its hits: ";
+//        for(const Cluster *const pCloseCluster : closestClusters.at(pCluster1))
+//        {
+            //std::cout << pCloseCluster << ", ";
+//        }
+        //std::cout << std::endl;
+        
+    }
+
+    //std::cout << usedClusters.size() << ", " << clusterDistanceMap.size() << std::endl;
+    if( 2 > clusterDistanceMap.size())
+        return;
+
+    std::vector<const Cluster*> clusteredClusters;
+    std::vector<std::vector<const Cluster*>> allHierarchies;
+    std::map<const Cluster*, unsigned int> clusterHierarchyMap;
+    while (clusteredClusters.size() < clusterDistanceMap.size())
+    {
+        std::vector<const Cluster*> newHierarchy;
+        bool changeMade = true;
+        unsigned int counter = 0;
+        while (changeMade)
+        {
+//            //std::cout << "Starting iteration " << ++counter << std::endl;
+            bool localChangeMade = false;
+            for (auto const *c1 : sliceClusters)
+            {
+                if (std::find(clusteredClusters.begin(),clusteredClusters.end(),c1) != clusteredClusters.end())
+                    continue;
+
+                if (newHierarchy.empty())
+                {   
+                    //std::cout << "Seeding hierarchy with cluster " << c1 << std::endl;
+                    newHierarchy.push_back(c1);
+                    clusteredClusters.push_back(c1);
+                    clusterHierarchyMap.insert(std::make_pair(c1,allHierarchies.size()));
+                    localChangeMade = true;
+                    break;
+                }
+                else
+                {
+                    for (auto const *pHierCluster : newHierarchy)
+                    {
+                        if (pHierCluster == c1)
+                            continue;
+                        const float dist = clusterDistanceMap.at(c1).at(pHierCluster);
+                        const bool isTrkSliceCluster = (trackFitResults.end() != trackFitResults.find(c1));
+                        const bool isShwSliceCluster = (showerConeFitResults.end() != showerConeFitResults.find(c1));
+
+                        const bool isTrkHierCluster = (trackFitResults.end() != trackFitResults.find(pHierCluster));
+                        const bool isShwHierCluster = (showerConeFitResults.end() != showerConeFitResults.find(pHierCluster));
+
+                        const bool isCloseCluster = std::find(closestClusters.at(pHierCluster).begin(),closestClusters.at(pHierCluster).end(),c1) != closestClusters.at(pHierCluster).end();
+
+                        // Use different cut values for tracks and showers
+                        float cutValue = m_sliceSplitTrackMaxDistance;
+
+                        // Use the shower distance if we are comparing shower -> X, or X -> shower
+                        if (isShwHierCluster) cutValue = m_sliceSplitShowerMaxDistance;
+                        if (isTrkHierCluster && isShwSliceCluster) cutValue = m_sliceSplitShowerMaxDistance;
+                        if (!isTrkSliceCluster && !isShwSliceCluster) cutValue = m_sliceSplitShowerMaxDistance;
+                        if (!isTrkHierCluster && !isShwHierCluster) cutValue = m_sliceSplitShowerMaxDistance;
+
+                        if (dist < cutValue || isCloseCluster)// || vtxdist1 < m_sliceSplitVtxApproachMaxDistance || vtxdist2 < m_sliceSplitVtxApproachMaxDistance)
+                        {
+                            //std::cout << isTrkHierCluster << isShwHierCluster << isTrkSliceCluster << isShwSliceCluster << std::endl;
+                            //std::cout << "Adding cluster " << c1 << " to hierarchy with " << dist << " cm from " << pHierCluster << ". Was it a special close cluster? " << isCloseCluster << std::endl;
+                            newHierarchy.push_back(c1);
+                            clusteredClusters.push_back(c1);
+                            clusterHierarchyMap.insert(std::make_pair(c1,allHierarchies.size()));
+                            localChangeMade = true;
+                            break;
+                        }
+                    }        
+                }
+            }
+            changeMade = localChangeMade;
+            //std::cout << "Ending iteraction " << counter << " and used " << clusteredClusters.size() << " of " << clusterDistanceMap.size() << " clusters" << std::endl;
+            ++counter;
+        }
+        //std::cout << "Made hierarchy with " << newHierarchy.size() << " clusters" << std::endl;
+        allHierarchies.push_back(newHierarchy);
+    }
+    //std::cout << "Made " << allHierarchies.size() << " hierarchies" << std::endl;
+
+    if (allHierarchies.size() < 2)
+        return;
+
+/*
+    // Check the clusters flagged for removal to see if any other cluster have a vertex very close to the cluster
+//    for (size_t h = 0; h < allHierarchies.size(); ++h)
+//    {
+//    for (const Cluster *const pClusterToRemove : allHierarchies.at(h))
+      std::vector<const Cluster*> clustersToAdd;
+        for (size_t c = 0; c < allHierarchies.at(0).size(); ++c)
+        {
+            const Cluster *const pClusterToKeep = allHierarchies.at(0).at(c);
+                
+            // We only want to use track-like or small clusters here since showers are easy to break
+//            if (showerConeFitResults.end() == showerConeFitResults.find(pClusterToKeep))
+//                continue;
+
+            //std::cout << "Looking for associations for cluster " << pClusterToKeep << " in hierarchy 0" << std::endl;
+            for (const Cluster *const pSliceCluster : sliceClusters)
+            {
+                if (pClusterToKeep == pSliceCluster)
+                    continue;
+    
+                const unsigned int oldHierarchy = clusterHierarchyMap.at(pSliceCluster);
+                if (oldHierarchy == 0)
+                    continue;
+    
+                // We only want to use track-like or small clusters here since showers are easy to break
+//                if (showerConeFitResults.end() == showerConeFitResults.find(pSliceCluster))
+//                    continue;
+
+                const float minDist = this->GetClosestApproachToVertex(clusterVerticesMap.at(pSliceCluster),pClusterToKeep);
+                if ((minDist < m_sliceSplitVtxApproachMaxDistance) && (std::find(closestClusters.at(pClusterToKeep).begin(),closestClusters.at(pClusterToKeep).end(),pSliceCluster) != closestClusters.at(pClusterToKeep).end()))
+                {
+                    //std::cout << "Moving cluster " << pSliceCluster << " from hierarchy " << oldHierarchy << " to 0" << std::endl;
+                    // Remove from other hierarchy but don't add to the new one yet to prevent recursion
+                    allHierarchies.at(oldHierarchy).erase(std::remove(allHierarchies.at(oldHierarchy).begin(),allHierarchies.at(oldHierarchy).end(),pSliceCluster),allHierarchies.at(oldHierarchy).end());
+                    clustersToAdd.push_back(pSliceCluster);
+                    clusterHierarchyMap.at(pSliceCluster) = 0;
+                }
+            }
+    
+        }
+        allHierarchies.at(0).insert(allHierarchies.at(0).end(),clustersToAdd.begin(),clustersToAdd.end());
+//    }
+*/
+    for (size_t h = 1; h < allHierarchies.size(); ++h)
+    {
+        for (const Cluster *const pClusterToRemove : allHierarchies.at(h))
+        {   
+            //std::cout << "Removing cluster with address " << pClusterToRemove << " and " << pClusterToRemove->GetOrderedCaloHitList().size() << " hits from the slice" << std::endl;
+            usedClusters.erase(pClusterToRemove);
+            sliceClusters.erase(std::remove(sliceClusters.begin(), sliceClusters.end(), pClusterToRemove),sliceClusters.end());
+        }
+    }
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------
@@ -280,6 +512,127 @@ bool EventSlicingTool::PassProximity(const Cluster *const pClusterInSlice, const
     }
 
     return false;
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+float EventSlicingTool::GetProximity(const Cluster *const pCluster1, const Cluster *const pCluster2) const
+{
+    float minDist = std::numeric_limits<float>::max();
+    for (const auto &orderedList1 : pCluster1->GetOrderedCaloHitList())
+    {   
+        for (const CaloHit *const pCaloHit1 : *(orderedList1.second))
+        {   
+            const CartesianVector &positionVector1(pCaloHit1->GetPositionVector());
+            
+            for (const auto &orderedList2 : pCluster2->GetOrderedCaloHitList())
+            {   
+                for (const CaloHit *const pCaloHit2 : *(orderedList2.second))
+                {   
+                    const float dist = (positionVector1 - pCaloHit2->GetPositionVector()).GetMagnitudeSquared();
+                    if (dist < minDist)
+                        minDist = dist;
+                }
+            }
+        }
+    }
+    
+    return minDist;
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+float EventSlicingTool::GetVertexProximity(const std::vector<pandora::CartesianVector> &cluster1Vertices, const std::vector<pandora::CartesianVector> &cluster2Vertices) const
+{
+
+    float minDistance = std::numeric_limits<float>::max();
+
+    if (cluster1Vertices.size() == 0 || cluster2Vertices.size() == 0)
+        return std::numeric_limits<float>::max();
+
+    for (const pandora::CartesianVector &v1 : cluster1Vertices)
+    {
+        for (const pandora::CartesianVector &v2 : cluster2Vertices)
+        {
+            const float dist = (v2-v1).GetMagnitude();
+            if (minDistance > dist)
+                minDistance = dist;
+        }
+    }
+
+    return minDistance;
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+void EventSlicingTool::GetClusterExtremes(const pandora::Cluster *const pCluster, const ThreeDSlidingFitResultMap &trackFitResults, const ThreeDSlidingConeFitResultMap &showerConeFitResults, std::vector<pandora::CartesianVector> &vertices) const
+{
+   // Search for track fits first
+    ThreeDSlidingFitResultMap::const_iterator inSliceIter = trackFitResults.find(pCluster);
+    if (trackFitResults.end() != inSliceIter)
+    {
+//        //std::cout << " - Looks like we have a track..." << std::endl;
+        const LArPointingCluster inSlicePointingCluster(inSliceIter->second);
+        vertices.push_back(inSlicePointingCluster.GetInnerVertex().GetPosition());
+        vertices.push_back(inSlicePointingCluster.GetOuterVertex().GetPosition());
+    }
+    else
+    {
+        // Otherwise find the shower information
+        ThreeDSlidingConeFitResultMap::const_iterator inSliceShwIter = showerConeFitResults.find(pCluster);
+        if (showerConeFitResults.end() != inSliceShwIter)
+        {
+//            //std::cout << " - Looks like we have a shower..." << std::endl;
+            const ThreeDSlidingConeFitResult &slidingConeFitResult3D(inSliceShwIter->second);
+            SimpleConeList simpleConeList;
+//            //std::cout << "   - Getting cone list" << std::endl;
+            try
+            {
+                slidingConeFitResult3D.GetSimpleConeList(m_nConeFitLayers, m_nConeFits, CONE_BOTH_DIRECTIONS, simpleConeList);
+                vertices.push_back(simpleConeList.front().GetConeApex());
+                if(simpleConeList.size() > 1)
+                    vertices.push_back(simpleConeList.back().GetConeApex());
+            }
+            catch (const StatusCodeException &)
+            {
+                // Fall back on just getting the extreme positions (ordered by z)
+                pandora::CartesianVector minPos(0.,0.,0.);
+                pandora::CartesianVector maxPos(0.,0.,0.);
+                LArClusterHelper::GetExtremalCoordinates(pCluster,minPos,maxPos);
+                vertices.push_back(minPos);
+                vertices.push_back(maxPos);
+                //std::cout << "Had to use fall-back method to get vertices for cluster " << pCluster << " with " << pCluster->GetOrderedCaloHitList().size() << " hits" << std::endl;
+            }
+//            //std::cout << "   - Got " << simpleConeList.size() << " cones" << std::endl;
+//            //std::cout << "Looking at cones..." << std::endl;
+//            for (auto const & cone : simpleConeList)
+//            {
+//              //std::cout << " - Cone position = " << cone.GetConeApex().GetX() << ", " 
+//                                                 << cone.GetConeApex().GetY() << ", " 
+//                                                 << cone.GetConeApex().GetZ() << std::endl; 
+//            }
+        }
+    }
+}
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+float EventSlicingTool::GetClosestApproachToVertex(const std::vector<pandora::CartesianVector> &vertices, const Cluster *const pCluster) const
+{
+    float minDist = std::numeric_limits<float>::max();
+    for (const auto &vtx : vertices)
+    {
+        for (const auto &orderedList : pCluster->GetOrderedCaloHitList())
+        {
+            for (const CaloHit *const pCaloHit : *(orderedList.second))
+            {
+                const float dist = (vtx - pCaloHit->GetPositionVector()).GetMagnitude();
+                if (minDist > dist)
+                    minDist = dist;
+            }
+        }
+    }
+    return minDist;   
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------
@@ -539,7 +892,7 @@ void EventSlicingTool::AssignRemainingHitsToSlices(const ClusterList &remainingC
     }
     catch (...)
     {
-        std::cout << "EventSlicingTool::AssignRemainingHitsToSlices - exception " << std::endl;
+        //std::cout << "EventSlicingTool::AssignRemainingHitsToSlices - exception " << std::endl;
         for (const auto &pointMap : pointToSliceIndexMap) delete pointMap.first;
         throw;
     }
@@ -650,7 +1003,7 @@ const EventSlicingTool::PointKDNode2D *EventSlicingTool::MatchClusterToSlice(con
     }
     catch (...)
     {
-        std::cout << "EventSlicingTool::MatchClusterToSlice - exception " << std::endl;
+        //std::cout << "EventSlicingTool::MatchClusterToSlice - exception " << std::endl;
         for (const CartesianVector *const pPoint : clusterPointList) delete pPoint;
         throw;
     }
@@ -752,6 +1105,18 @@ StatusCode EventSlicingTool::ReadSettings(const TiXmlHandle xmlHandle)
 
     PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle,
         "Use3DProjectionsInHitPickUp", m_use3DProjectionsInHitPickUp));
+
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle,
+        "UseSliceSplit", m_useSliceSplit));
+
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle,
+        "SliceSplitTrackMaxDistance", m_sliceSplitTrackMaxDistance));
+
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle,
+        "SliceSplitShowerMaxDistance", m_sliceSplitShowerMaxDistance));
+
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle,
+        "SliceSplitVertexMaxDistance", m_sliceSplitVertexMaxDistance));
 
     return STATUS_CODE_SUCCESS;
 }

@@ -89,6 +89,26 @@ private:
         const ThreeDSlidingConeFitResultMap &showerConeFitResults, pandora::ClusterVector &clusterSlice, pandora::ClusterSet &usedClusters) const;
 
     /**
+     *  @brief  As a final step, check slices for detached clusters and remove them
+     *
+     *  @param  sliceClusters the list of clusters currently in the slide
+     *  @param  usedClusters the list of clusters already added to slices
+     *  @param  trackFitResults the map of sliding fit results for track candidate clusters
+     *  @param  showerConeFitResults the map of sliding const fit results for shower candidate clusters
+     */
+    void CheckAndDivideSlice(pandora::ClusterVector &sliceClusters, pandora::ClusterSet &usedClusters, const ThreeDSlidingFitResultMap &trackFitResults, const ThreeDSlidingConeFitResultMap &showerConeFitResults) const;
+
+    /**
+     *  @brief  Form simple hierarchies in a slice and remove clusters in a detached hierarchy
+     *
+     *  @param  sliceClusters the list of clusters currently in the slide
+     *  @param  usedClusters the list of clusters already added to slices
+     *  @param  trackFitResults the map of sliding fit results for track candidate clusters
+     *  @param  showerConeFitResults the map of sliding const fit results for shower candidate clusters
+     */
+    void RemoveDistantHierarchy(pandora::ClusterVector &sliceClusters, pandora::ClusterSet &usedClusters, const ThreeDSlidingFitResultMap &trackFitResults, const ThreeDSlidingConeFitResultMap &showerConeFitResults) const;
+
+    /**
      *  @brief  Compare the provided clusters to assess whether they are associated via pointing (checks association "both ways")
      *
      *  @param  pClusterInSlice address of a cluster already in the slice
@@ -108,6 +128,38 @@ private:
      *  @return whether an addition to the cluster slice should be made
      */
     bool PassProximity(const pandora::Cluster *const pClusterInSlice, const pandora::Cluster *const pCandidateCluster) const;
+
+    /**
+     *  @brief  Get the shortest distance between hits in two clusters
+     *
+     *  @param  pCluster1 address of a cluster
+     *  @param  pCluster2 address of a second cluster
+     *
+     *  @return shortest distance between hits in the clusters
+     */
+    float GetProximity(const pandora::Cluster *const pCluster1, const pandora::Cluster *const pCluster2) const;
+
+    /**
+     *  @brief  Get the proximity of two clusters from their vertices
+     *
+     *  @param  cluster1Vertices extremes of cluster 1
+     *  @param  cluster2Vertices extremes of cluster 2
+     *
+     *  @return value of closest approach
+     */
+    float GetVertexProximity(const std::vector<pandora::CartesianVector> &cluster1Vertices, const std::vector<pandora::CartesianVector> &cluster2Vertices) const;
+
+    /**
+     *  @brief  Get start and end points of a cluster 
+     *
+     *  @param  pCluster pointer to the cluster
+     *  @param  trackFitResults the map of sliding fit results for track candidate clusters
+     *  @param  showerConeFitResults the map of sliding const fit results for shower candidate clusters
+     *  @param  vertices the vector to store the start and end points of the cluster
+     */
+    void GetClusterExtremes(const pandora::Cluster *const pCluster, const ThreeDSlidingFitResultMap &trackFitResults, const ThreeDSlidingConeFitResultMap &showerConeFitResults, std::vector<pandora::CartesianVector> &vertices) const;
+
+    float GetClosestApproachToVertex(const std::vector<pandora::CartesianVector> &vertices, const pandora::Cluster *const pCluster) const;
 
     /**
      *  @brief  Compare the provided clusters to assess whether they are associated via cone fits to the shower cluster (single "direction" check)
@@ -295,6 +347,11 @@ private:
     float           m_coneBoundedFraction2;             ///< The minimum cluster bounded fraction for association 2
 
     bool            m_use3DProjectionsInHitPickUp;      ///< Whether to include 3D cluster projections when assigning remaining clusters to slices
+
+    bool            m_useSliceSplit;                    ///< Whether to check slices for detached clusters and split them off
+    float           m_sliceSplitTrackMaxDistance;            ///< Maximum distance between verticies to split the slice
+    float           m_sliceSplitShowerMaxDistance;   ///< Maximum distance between hierarchy verticies to split the slice
+    float           m_sliceSplitVertexMaxDistance; ///< Maximum distance to associate another cluster with a removed cluster
 };
 
 } // namespace lar_content
