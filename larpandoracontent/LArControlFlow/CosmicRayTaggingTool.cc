@@ -38,7 +38,8 @@ CosmicRayTaggingTool::CosmicRayTaggingTool() :
     m_face_Yb(0.f),
     m_face_Yt(0.f),
     m_face_Zu(0.f),
-    m_face_Zd(0.f)
+    m_face_Zd(0.f),
+    m_tagTopEntering(false)
 {
 }
 
@@ -129,6 +130,14 @@ void CosmicRayTaggingTool::FindAmbiguousPfos(const PfoList &parentCosmicRayPfos,
     PfoToBoolMap pfoToIsSteepAndStraightMap;
     this->CheckIfSteepAndStraight(candidates, pfoToIsSteepAndStraightMap);
     cosmicTaggingPfoMaps.push_back(pfoToIsSteepAndStraightMap);
+
+    if (m_tagTopEntering)
+    {
+        // Aggressive approach to tag all top entering particles with sliding fits as cosmics
+        PfoToBoolMap pfoToIsTopEnteringMap;
+        this->CheckIfTopEntering(candidates, pfoToIsTopEnteringMap);
+        cosmicTaggingPfoMaps.push_back(pfoToIsTopEnteringMap);
+    }
 
     UIntSet neutrinoSliceSet;
     this->GetNeutrinoSlices(candidates, pfoToInTimeMap, pfoToIsContainedMap, neutrinoSliceSet);
@@ -478,8 +487,26 @@ void CosmicRayTaggingTool::CheckIfSteepAndStraight(const CRCandidateList &candid
         if (candidate.m_canFit)
             isSteepAndStraight = (candidate.m_theta > m_minCosmicCosTheta) &&
                                  (candidate.m_curvature < m_maxCosmicCurvature);
-        
         if (!pfoToIsSteepAndStraightMap.insert(PfoToBoolMap::value_type(candidate.m_pPfo, isSteepAndStraight)).second)
+            throw StatusCodeException(STATUS_CODE_ALREADY_PRESENT);
+    }
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+void CosmicRayTaggingTool::CheckIfTopEntering(const CRCandidateList &candidates, PfoToBoolMap &pfoToIsTopEnteringMap) const
+{
+    for (const CRCandidate &candidate : candidates)
+    {
+        bool isTopEntering(false);
+        if (candidate.m_canFit)
+        {
+            const float upperY((candidate.m_endPoint1.GetY() > candidate.m_endPoint2.GetY()) ? candidate.m_endPoint1.GetY() : candidate.m_endPoint2.GetY());
+
+            isTopEntering = (upperY > m_face_Yt - m_marginY);
+        }
+
+        if (!pfoToIsTopEnteringMap.insert(PfoToBoolMap::value_type(candidate.m_pPfo, isTopEntering)).second)
             throw StatusCodeException(STATUS_CODE_ALREADY_PRESENT);
     }
 }
@@ -644,6 +671,9 @@ StatusCode CosmicRayTaggingTool::ReadSettings(const TiXmlHandle xmlHandle)
 
     PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle,
         "MaxCosmicCurvature", m_maxCosmicCurvature));
+
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle,
+        "TagTopEntering", m_tagTopEntering));
 
     return STATUS_CODE_SUCCESS;
 }

@@ -156,6 +156,14 @@ private:
     void CheckIfTopToBottom(const CRCandidateList &candidates, PfoToBoolMap &pfoToIsTopToBottomMap) const;
 
     /**
+     *  @brief  Check if each candidate is "top entering"
+     *
+     *  @param  candidates input list of candidates
+     *  @param  pfoToIsTopEnteringMap output mapping between candidates Pfos and if they are top entering
+     */
+    void CheckIfTopEntering(const CRCandidateList &candidates, PfoToBoolMap &pfoToIsTopEnteringMap) const;
+
+    /**
      *  @brief  Check if each candidate is steep (large in theta) and has low curvature
      *
      *  @param  candidates input list of candidates
@@ -222,6 +230,8 @@ private:
     float           m_face_Yt;                  ///< Top        Y face
     float           m_face_Zu;                  ///< Upstream   Z face
     float           m_face_Zd;                  ///< Downstream Z face
+
+    bool            m_tagTopEntering;           ///< Optional aggressive tagging of all top entering particles
 };
 
 } // namespace lar_content
