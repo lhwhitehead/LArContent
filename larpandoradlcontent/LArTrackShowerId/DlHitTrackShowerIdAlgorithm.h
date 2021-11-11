@@ -67,6 +67,17 @@ private:
      */
     void GetSparseTileMap(const pandora::CaloHitList &caloHitList, const float xMin, const float zMin, const int nTilesX, PixelToTileMap &sparseMap);
 
+    /**
+     *  @brief  Convert a calo hit position into local pixel values for a tile
+     *
+     *  @param  pCaloHit The hit for which we want to get the pixel values
+     *  @param  xMin The minimum x-coordinate
+     *  @param  zMin The minimum z-coordinate
+     *  @param  pixelX The output pixel coordinate in x
+     *  @param  pixelZ The output pixel coordinate in z
+     */
+    void ConvertHitPosToLocalPixelCoords(const pandora::CaloHit *pCaloHit, const float xMin, const float zMin, int &pixelX, int &pixelZ) const;
+
     pandora::StringVector m_caloHitListNames; ///< Name of input calo hit list
     std::string m_modelFileNameU;             ///< Model file name for U view
     std::string m_modelFileNameV;             ///< Model file name for V view
@@ -80,7 +91,7 @@ private:
     bool m_visualize;                         ///< Whether to visualize the track shower ID scores
     bool m_useTrainingMode;                   ///< Training mode
     std::string m_trainingOutputFile;         ///< Output file name for training examples
-    int m_tileHitThreshold;                   ///< Threshold number of hits to produce a tile
+    int m_tileHitThreshold;                   ///< Require at least this many hits to produce a tile
 };
 
 } // namespace lar_dl_content

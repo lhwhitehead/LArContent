@@ -170,8 +170,6 @@ StatusCode DlHitTrackShowerIdAlgorithm::Infer()
         PixelToTileMap sparseMap;
         this->GetSparseTileMap(*pCaloHitList, xMin, zMin, nTilesX, sparseMap);
 
-        std::cout << " *** Got " << sparseMap.size() << " tiles for view " << view << std::endl;
-
         // Make calo hit lists for each tile
         std::map<int,CaloHitList> tileToCaloHits;
         for (const CaloHit *pCaloHit : *pCaloHitList)
@@ -191,7 +189,7 @@ StatusCode DlHitTrackShowerIdAlgorithm::Infer()
         // Prepare each tile and run the inference
         for (auto const &tileHitPair : tileToCaloHits)
         {
-            if (static_cast<int>(tileHitPair.second.size()) <= m_tileHitThreshold)
+            if (static_cast<int>(tileHitPair.second.size()) < m_tileHitThreshold)
             {
                 for (const CaloHit *pCaloHit : tileHitPair.second)
                 {
@@ -211,14 +209,9 @@ StatusCode DlHitTrackShowerIdAlgorithm::Infer()
             // Get the pixel values from the hit energies
             for (const CaloHit *pCaloHit : tileHitPair.second)
             {
-                const float x(pCaloHit->GetPositionVector().GetX());
-                const float z(pCaloHit->GetPositionVector().GetZ());
-                // Determine hit position within the tile
-                const float localX = std::fmod(x - xMin, m_tileSize);
-                const float localZ = std::fmod(z - zMin, m_tileSize);
                 // Determine hit pixel within the tile
-                const int pixelX = static_cast<int>(std::floor(localX * m_imageWidth / m_tileSize));
-                const int pixelZ = (m_imageHeight - 1) - static_cast<int>(std::floor(localZ * m_imageHeight / m_tileSize));
+                int pixelX, pixelZ;
+                this->ConvertHitPosToLocalPixelCoords(pCaloHit, xMin, zMin, pixelX, pixelZ);
                 weights[pixelZ][pixelX] += pCaloHit->GetInputEnergy();
             }
 
@@ -256,14 +249,9 @@ StatusCode DlHitTrackShowerIdAlgorithm::Infer()
             // Extract the scores for all of the hits
             for (const CaloHit *pCaloHit : tileHitPair.second)
             {
-                const float x(pCaloHit->GetPositionVector().GetX());
-                const float z(pCaloHit->GetPositionVector().GetZ());
-                // Determine hit position within the tile
-                const float localX = std::fmod(x - xMin, m_tileSize);
-                const float localZ = std::fmod(z - zMin, m_tileSize);
                 // Determine hit pixel within the tile
-                const int pixelX = static_cast<int>(std::floor(localX * m_imageWidth / m_tileSize));
-                const int pixelZ = (m_imageHeight - 1) - static_cast<int>(std::floor(localZ * m_imageHeight / m_tileSize));
+                int pixelX, pixelZ;
+                this->ConvertHitPosToLocalPixelCoords(pCaloHit, xMin, zMin, pixelX, pixelZ);
             
                 // Apply softmax to loss to get actual probability
                 float probShower = exp(outputAccessor[0][1][pixelZ][pixelX]);
@@ -358,6 +346,20 @@ void DlHitTrackShowerIdAlgorithm::GetSparseTileMap(
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
+void DlHitTrackShowerIdAlgorithm::ConvertHitPosToLocalPixelCoords(const CaloHit *pCaloHit, const float xMin, const float zMin, int &pixelX, int &pixelZ) const
+{
+    const float x(pCaloHit->GetPositionVector().GetX());
+    const float z(pCaloHit->GetPositionVector().GetZ());
+    // Determine hit position within the tile
+    const float localX = std::fmod(x - xMin, m_tileSize);
+    const float localZ = std::fmod(z - zMin, m_tileSize);
+    // Determine hit pixel within the tile
+    pixelX = static_cast<int>(std::floor(localX * m_imageWidth / m_tileSize));
+    pixelZ = (m_imageHeight - 1) - static_cast<int>(std::floor(localZ * m_imageHeight / m_tileSize));
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+
 StatusCode DlHitTrackShowerIdAlgorithm::ReadSettings(const TiXmlHandle xmlHandle)
 {
     PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "UseTrainingMode", m_useTrainingMode));
@@ -410,6 +412,7 @@ StatusCode DlHitTrackShowerIdAlgorithm::ReadSettings(const TiXmlHandle xmlHandle
         std::cout << "Error: Invalid image size specification" << std::endl;
         return STATUS_CODE_INVALID_PARAMETER;
     }
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "TileHitThreshold", m_tileHitThreshold));
     PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "Visualize", m_visualize));
 
     return STATUS_CODE_SUCCESS;
