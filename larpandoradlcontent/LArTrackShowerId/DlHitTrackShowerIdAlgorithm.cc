@@ -36,7 +36,7 @@ DlHitTrackShowerIdAlgorithm::DlHitTrackShowerIdAlgorithm() :
     m_visualize(false),
     m_useTrainingMode(false),
     m_trainingOutputFile(""),
-    m_tileHitThreshold(5)
+    m_tileHitThreshold(0)
 {
 }
 
@@ -191,13 +191,11 @@ StatusCode DlHitTrackShowerIdAlgorithm::Infer()
         // Prepare each tile and run the inference
         for (auto const &tileHitPair : tileToCaloHits)
         {
-
-            // If we don't have enough hits then just assign the hits as shower hits and move on to the next tile
-            if (static_cast<int>(tileHitPair.second.size()) < m_tileHitThreshold)
+            if (static_cast<int>(tileHitPair.second.size()) <= m_tileHitThreshold)
             {
-                std::cout << " - Tile " << tileHitPair.first << " was not classified as it only has " << tileHitPair.second.size() << " hits" << std::endl;
                 for (const CaloHit *pCaloHit : tileHitPair.second)
                 {
+                    // Set all of these hits to be shower-like as they are sparse
                     showerHits.push_back(pCaloHit);
                     LArCaloHit *pLArCaloHit{const_cast<LArCaloHit *>(dynamic_cast<const LArCaloHit *>(pCaloHit))};
                     pLArCaloHit->SetShowerProbability(1.0);
@@ -283,7 +281,7 @@ StatusCode DlHitTrackShowerIdAlgorithm::Infer()
                 probTrack *= recipSum;
                 LArCaloHit *pLArCaloHit{const_cast<LArCaloHit *>(dynamic_cast<const LArCaloHit *>(pCaloHit))};
                 pLArCaloHit->SetShowerProbability(probShower);
-                pLArCaloHit->SetTrackProbability(probTrack); 
+                pLArCaloHit->SetTrackProbability(probTrack);
             }
         }
 
