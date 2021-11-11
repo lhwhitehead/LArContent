@@ -35,7 +35,8 @@ DlHitTrackShowerIdAlgorithm::DlHitTrackShowerIdAlgorithm() :
     m_tileSize(128.f),
     m_visualize(false),
     m_useTrainingMode(false),
-    m_trainingOutputFile("")
+    m_trainingOutputFile(""),
+    m_tileHitThreshold(5)
 {
 }
 
@@ -168,34 +169,59 @@ StatusCode DlHitTrackShowerIdAlgorithm::Infer()
 
         PixelToTileMap sparseMap;
         this->GetSparseTileMap(*pCaloHitList, xMin, zMin, nTilesX, sparseMap);
-        const int nTiles = sparseMap.size();
+
+        std::cout << " *** Got " << sparseMap.size() << " tiles for view " << view << std::endl;
+
+        // Make calo hit lists for each tile
+        std::map<int,CaloHitList> tileToCaloHits;
+        for (const CaloHit *pCaloHit : *pCaloHitList)
+        {
+            const float x(pCaloHit->GetPositionVector().GetX());
+            const float z(pCaloHit->GetPositionVector().GetZ());
+            // Determine which tile the hit will be assigned to
+            const int tileX = static_cast<int>(std::floor((x - xMin) / m_tileSize));
+            const int tileZ = static_cast<int>(std::floor((z - zMin) / m_tileSize));
+            const int tile = sparseMap.at(tileZ * nTilesX + tileX);
+
+            tileToCaloHits[tile].push_back(pCaloHit);
+        }
 
         CaloHitList trackHits, showerHits, otherHits;
-        // Process tile
-        // ATTN: Be sure to reset all values to zero after each tile has been processed
-        float **weights = new float *[m_imageHeight];
-        for (int r = 0; r < m_imageHeight; ++r)
-            weights[r] = new float[m_imageWidth]();
-        for (int i = 0; i < nTiles; ++i)
+
+        // Prepare each tile and run the inference
+        for (auto const &tileHitPair : tileToCaloHits)
         {
-            for (const CaloHit *pCaloHit : *pCaloHitList)
+
+            // If we don't have enough hits then just assign the hits as shower hits and move on to the next tile
+            if (static_cast<int>(tileHitPair.second.size()) < m_tileHitThreshold)
+            {
+                std::cout << " - Tile " << tileHitPair.first << " was not classified as it only has " << tileHitPair.second.size() << " hits" << std::endl;
+                for (const CaloHit *pCaloHit : tileHitPair.second)
+                {
+                    showerHits.push_back(pCaloHit);
+                    LArCaloHit *pLArCaloHit{const_cast<LArCaloHit *>(dynamic_cast<const LArCaloHit *>(pCaloHit))};
+                    pLArCaloHit->SetShowerProbability(1.0);
+                    pLArCaloHit->SetTrackProbability(0.0);
+                }
+                continue;
+            }
+
+            std::vector<std::vector<float>> weights;
+            for (int r = 0; r < m_imageHeight; ++r)
+                weights.push_back(std::vector<float>(m_imageWidth,0.f));
+
+            // Get the pixel values from the hit energies
+            for (const CaloHit *pCaloHit : tileHitPair.second)
             {
                 const float x(pCaloHit->GetPositionVector().GetX());
                 const float z(pCaloHit->GetPositionVector().GetZ());
-                // Determine which tile the hit will be assigned to
-                const int tileX = static_cast<int>(std::floor((x - xMin) / m_tileSize));
-                const int tileZ = static_cast<int>(std::floor((z - zMin) / m_tileSize));
-                const int tile = sparseMap.at(tileZ * nTilesX + tileX);
-                if (tile == i)
-                {
-                    // Determine hit position within the tile
-                    const float localX = std::fmod(x - xMin, m_tileSize);
-                    const float localZ = std::fmod(z - zMin, m_tileSize);
-                    // Determine hit pixel within the tile
-                    const int pixelX = static_cast<int>(std::floor(localX * m_imageWidth / m_tileSize));
-                    const int pixelZ = (m_imageHeight - 1) - static_cast<int>(std::floor(localZ * m_imageHeight / m_tileSize));
-                    weights[pixelZ][pixelX] += pCaloHit->GetInputEnergy();
-                }
+                // Determine hit position within the tile
+                const float localX = std::fmod(x - xMin, m_tileSize);
+                const float localZ = std::fmod(z - zMin, m_tileSize);
+                // Determine hit pixel within the tile
+                const int pixelX = static_cast<int>(std::floor(localX * m_imageWidth / m_tileSize));
+                const int pixelZ = (m_imageHeight - 1) - static_cast<int>(std::floor(localZ * m_imageHeight / m_tileSize));
+                weights[pixelZ][pixelX] += pCaloHit->GetInputEnergy();
             }
 
             // Find min and max charge to allow normalisation
@@ -214,80 +240,52 @@ StatusCode DlHitTrackShowerIdAlgorithm::Infer()
             if (chargeRange <= 0.f)
                 chargeRange = 1.f;
 
-            // Populate accessor based on normalised weights
-            CaloHitToPixelMap caloHitToPixelMap;
+            // Create the torch input from the weights
             LArDLHelper::TorchInput input;
             LArDLHelper::InitialiseInput({1, 1, m_imageHeight, m_imageWidth}, input);
             auto accessor = input.accessor<float, 4>();
-            for (const CaloHit *pCaloHit : *pCaloHitList)
-            {
-                const float x(pCaloHit->GetPositionVector().GetX());
-                const float z(pCaloHit->GetPositionVector().GetZ());
-                // Determine which tile the hit will be assigned to
-                const int tileX = static_cast<int>(std::floor((x - xMin) / m_tileSize));
-                const int tileZ = static_cast<int>(std::floor((z - zMin) / m_tileSize));
-                const int tile = sparseMap.at(tileZ * nTilesX + tileX);
-                if (tile == i)
-                {
-                    // Determine hit position within the tile
-                    const float localX = std::fmod(x - xMin, m_tileSize);
-                    const float localZ = std::fmod(z - zMin, m_tileSize);
-                    // Determine hit pixel within the tile
-                    const int pixelX = static_cast<int>(std::floor(localX * m_imageWidth / m_tileSize));
-                    const int pixelZ = (m_imageHeight - 1) - static_cast<int>(std::floor(localZ * m_imageHeight / m_tileSize));
-                    accessor[0][0][pixelZ][pixelX] = (weights[pixelZ][pixelX] - chargeMin) / chargeRange;
-                    caloHitToPixelMap.insert(std::make_pair(pCaloHit, std::make_tuple(tileZ, tileX, pixelZ, pixelX)));
-                }
-            }
-            // Reset weights
-            for (int r = 0; r < this->m_imageHeight; ++r)
-                for (int c = 0; c < this->m_imageWidth; ++c)
-                    weights[r][c] = 0.f;
+            for (int r = 0; r < m_imageHeight; ++r)
+                for (int c = 0; c < m_imageWidth; ++c)
+                    accessor[0][0][r][c] = (weights[r][c] - chargeMin) / chargeRange;
 
-            // Run the input through the trained model and get the output accessor
+            // Run the inference
             LArDLHelper::TorchInputVector inputs;
             inputs.push_back(input);
             LArDLHelper::TorchOutput output;
             LArDLHelper::Forward(model, inputs, output);
             auto outputAccessor = output.accessor<float, 4>();
 
-            for (const CaloHit *pCaloHit : *pCaloHitList)
+            // Extract the scores for all of the hits
+            for (const CaloHit *pCaloHit : tileHitPair.second)
             {
-                auto found{caloHitToPixelMap.find(pCaloHit)};
-                if (found == caloHitToPixelMap.end())
-                    continue;
-                auto pixelMap = found->second;
-                const int tileZ(std::get<0>(pixelMap));
-                const int tileX(std::get<1>(pixelMap));
-                const int tile = sparseMap.at(tileZ * nTilesX + tileX);
-                if (tile == i)
-                { // Make sure we're looking at a hit in the correct tile
-                    const int pixelZ(std::get<2>(pixelMap));
-                    const int pixelX(std::get<3>(pixelMap));
-
-                    // Apply softmax to loss to get actual probability
-                    float probShower = exp(outputAccessor[0][1][pixelZ][pixelX]);
-                    float probTrack = exp(outputAccessor[0][2][pixelZ][pixelX]);
-                    float probNull = exp(outputAccessor[0][0][pixelZ][pixelX]);
-                    if (probShower > probTrack && probShower > probNull)
-                        showerHits.push_back(pCaloHit);
-                    else if (probTrack > probShower && probTrack > probNull)
-                        trackHits.push_back(pCaloHit);
-                    else
-                        otherHits.push_back(pCaloHit);
-                    float recipSum = 1.f / (probShower + probTrack);
-                    // Adjust probabilities to ignore null hits and update LArCaloHit
-                    probShower *= recipSum;
-                    probTrack *= recipSum;
-                    LArCaloHit *pLArCaloHit{const_cast<LArCaloHit *>(dynamic_cast<const LArCaloHit *>(pCaloHit))};
-                    pLArCaloHit->SetShowerProbability(probShower);
-                    pLArCaloHit->SetTrackProbability(probTrack);
-                }
+                const float x(pCaloHit->GetPositionVector().GetX());
+                const float z(pCaloHit->GetPositionVector().GetZ());
+                // Determine hit position within the tile
+                const float localX = std::fmod(x - xMin, m_tileSize);
+                const float localZ = std::fmod(z - zMin, m_tileSize);
+                // Determine hit pixel within the tile
+                const int pixelX = static_cast<int>(std::floor(localX * m_imageWidth / m_tileSize));
+                const int pixelZ = (m_imageHeight - 1) - static_cast<int>(std::floor(localZ * m_imageHeight / m_tileSize));
+            
+                // Apply softmax to loss to get actual probability
+                float probShower = exp(outputAccessor[0][1][pixelZ][pixelX]);
+                float probTrack = exp(outputAccessor[0][2][pixelZ][pixelX]);
+                const float probNull = exp(outputAccessor[0][0][pixelZ][pixelX]);
+                if (probShower > probTrack && probShower > probNull)
+                    showerHits.push_back(pCaloHit);
+                else if (probTrack > probShower && probTrack > probNull)
+                    trackHits.push_back(pCaloHit);
+                else
+                    otherHits.push_back(pCaloHit);
+                const float recipSum = 1.f / (probShower + probTrack);
+                // Adjust probabilities to ignore null hits and update LArCaloHit
+                probShower *= recipSum;
+                probTrack *= recipSum;
+                LArCaloHit *pLArCaloHit{const_cast<LArCaloHit *>(dynamic_cast<const LArCaloHit *>(pCaloHit))};
+                pLArCaloHit->SetShowerProbability(probShower);
+                pLArCaloHit->SetTrackProbability(probTrack); 
             }
         }
-        for (int r = 0; r < this->m_imageHeight; ++r)
-            delete[] weights[r];
-        delete[] weights;
 
         if (m_visualize)
         {

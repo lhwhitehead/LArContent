@@ -80,6 +80,7 @@ private:
     bool m_visualize;                         ///< Whether to visualize the track shower ID scores
     bool m_useTrainingMode;                   ///< Training mode
     std::string m_trainingOutputFile;         ///< Output file name for training examples
+    int m_tileHitThreshold;                   ///< Threshold number of hits to produce a tile
 };
 
 } // namespace lar_dl_content
