@@ -36,7 +36,7 @@ DlHitTrackShowerIdAlgorithm::DlHitTrackShowerIdAlgorithm() :
     m_visualize(false),
     m_useTrainingMode(false),
     m_trainingOutputFile(""),
-    m_tileHitThreshold(0)
+    m_tileHitThreshold(1)
 {
 }
 
@@ -202,9 +202,7 @@ StatusCode DlHitTrackShowerIdAlgorithm::Infer()
                 continue;
             }
 
-            std::vector<std::vector<float>> weights;
-            for (int r = 0; r < m_imageHeight; ++r)
-                weights.push_back(std::vector<float>(m_imageWidth,0.f));
+            std::vector<std::vector<float>> pixelValues(m_imageHeight,std::vector<float>(m_imageWidth,0.f));
 
             // Get the pixel values from the hit energies
             for (const CaloHit *pCaloHit : tileHitPair.second)
@@ -212,7 +210,7 @@ StatusCode DlHitTrackShowerIdAlgorithm::Infer()
                 // Determine hit pixel within the tile
                 int pixelX, pixelZ;
                 this->ConvertHitPosToLocalPixelCoords(pCaloHit, xMin, zMin, pixelX, pixelZ);
-                weights[pixelZ][pixelX] += pCaloHit->GetInputEnergy();
+                pixelValues[pixelZ][pixelX] += pCaloHit->GetInputEnergy();
             }
 
             // Find min and max charge to allow normalisation
@@ -221,23 +219,21 @@ StatusCode DlHitTrackShowerIdAlgorithm::Infer()
             {
                 for (int c = 0; c < m_imageWidth; ++c)
                 {
-                    if (weights[r][c] > chargeMax)
-                        chargeMax = weights[r][c];
-                    if (weights[r][c] < chargeMin)
-                        chargeMin = weights[r][c];
+                    if (pixelValues[r][c] > chargeMax)
+                        chargeMax = pixelValues[r][c];
+                    if (pixelValues[r][c] < chargeMin)
+                        chargeMin = pixelValues[r][c];
                 }
             }
-            float chargeRange{chargeMax - chargeMin};
-            if (chargeRange <= 0.f)
-                chargeRange = 1.f;
+            const float chargeRange{chargeMax - chargeMin > 0.f ? chargeMax - chargeMin : 1.f};
 
-            // Create the torch input from the weights
+            // Create the torch input from normalised pixel values
             LArDLHelper::TorchInput input;
             LArDLHelper::InitialiseInput({1, 1, m_imageHeight, m_imageWidth}, input);
             auto accessor = input.accessor<float, 4>();
             for (int r = 0; r < m_imageHeight; ++r)
                 for (int c = 0; c < m_imageWidth; ++c)
-                    accessor[0][0][r][c] = (weights[r][c] - chargeMin) / chargeRange;
+                    accessor[0][0][r][c] = (pixelValues[r][c] - chargeMin) / chargeRange;
 
             // Run the inference
             LArDLHelper::TorchInputVector inputs;
@@ -346,7 +342,8 @@ void DlHitTrackShowerIdAlgorithm::GetSparseTileMap(
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
-void DlHitTrackShowerIdAlgorithm::ConvertHitPosToLocalPixelCoords(const CaloHit *pCaloHit, const float xMin, const float zMin, int &pixelX, int &pixelZ) const
+void DlHitTrackShowerIdAlgorithm::ConvertHitPosToLocalPixelCoords(
+    const CaloHit *pCaloHit, const float xMin, const float zMin, int &pixelX, int &pixelZ) const
 {
     const float x(pCaloHit->GetPositionVector().GetX());
     const float z(pCaloHit->GetPositionVector().GetZ());
