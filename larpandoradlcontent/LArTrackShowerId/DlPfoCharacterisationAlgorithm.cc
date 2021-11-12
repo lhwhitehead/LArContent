@@ -21,7 +21,8 @@ using namespace lar_content;
 namespace lar_dl_content
 {
 
-DlPfoCharacterisationAlgorithm::DlPfoCharacterisationAlgorithm()
+DlPfoCharacterisationAlgorithm::DlPfoCharacterisationAlgorithm() :
+    m_trackLikelihoodThreshold(0.5f)
 {
 }
 
@@ -50,7 +51,7 @@ bool DlPfoCharacterisationAlgorithm::IsClearTrack(const Cluster *const pCluster)
         if (N > 0)
         {
             float mean{std::accumulate(std::begin(trackLikelihoods), std::end(trackLikelihoods), 0.f) / N};
-            if (mean >= 0.5f)
+            if (mean >= m_trackLikelihoodThreshold)
                 return true;
             else
                 return false;
@@ -97,7 +98,7 @@ bool DlPfoCharacterisationAlgorithm::IsClearTrack(const pandora::ParticleFlowObj
     if (N > 0)
     {
         float mean{std::accumulate(std::begin(trackLikelihoods), std::end(trackLikelihoods), 0.f) / N};
-        if (mean >= 0.5f)
+        if (mean >= m_trackLikelihoodThreshold)
             return true;
         else
             return false;
@@ -110,6 +111,7 @@ bool DlPfoCharacterisationAlgorithm::IsClearTrack(const pandora::ParticleFlowObj
 
 StatusCode DlPfoCharacterisationAlgorithm::ReadSettings(const TiXmlHandle xmlHandle)
 {
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "TrackLikelihoodThreshold", m_trackLikelihoodThreshold));
     return PfoCharacterisationBaseAlgorithm::ReadSettings(xmlHandle);
 }
 

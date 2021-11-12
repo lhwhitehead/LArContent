@@ -42,6 +42,8 @@ protected:
     bool IsClearTrack(const pandora::Cluster *const pCluster) const;
 
     pandora::StatusCode ReadSettings(const pandora::TiXmlHandle xmlHandle);
+
+    float m_trackLikelihoodThreshold; ///< Clusters with a track likelihood above this value are considered track-like
 };
 
 } // namespace lar_dl_content

@@ -28,6 +28,8 @@ private:
     bool IsClearTrack(const pandora::Cluster *const pCluster) const;
     bool IsClearTrack(const pandora::ParticleFlowObject *const pPfo) const;
     pandora::StatusCode ReadSettings(const pandora::TiXmlHandle xmlHandle);
+
+    float m_trackLikelihoodThreshold;
 };
 
 } // namespace lar_dl_content

@@ -24,7 +24,7 @@ public:
     /**
      *  @brief  Default constructor
      */
-    DlTrackShowerStreamSelectionAlgorithm() = default;
+    DlTrackShowerStreamSelectionAlgorithm();// = default;
 
     virtual ~DlTrackShowerStreamSelectionAlgorithm() = default;
 
@@ -43,6 +43,8 @@ private:
 
     std::string m_trackListName;  ///< The name of the track list
     std::string m_showerListName; ///< The name of the shower list
+
+    float m_trackLikelihoodThreshold; ///< Threshold to select clusters as track-like
 };
 
 } // namespace lar_dl_content
