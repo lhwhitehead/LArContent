@@ -63,6 +63,15 @@ public:
      *  @return mean track likelihood score
      */
     static float GetMeanTrackLikelihood(const pandora::CaloHitList &caloHits); 
+
+    /**
+     *  @brief  Get the mean shower likelihood for a CaloHitList
+     *
+     *  @param  input CaloHitList
+     *
+     *  @return mean shower likelihood score
+     */
+    static float GetMeanShowerLikelihood(const pandora::CaloHitList &caloHits); 
 };
 
 } // namespace lar_dl_content

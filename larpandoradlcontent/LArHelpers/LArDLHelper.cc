@@ -71,4 +71,11 @@ float LArDLHelper::GetMeanTrackLikelihood(const CaloHitList &caloHits)
     return meanTrackLikelihood;
 }
 
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+float LArDLHelper::GetMeanShowerLikelihood(const CaloHitList &caloHits)
+{
+    return 1.f - LArDLHelper::GetMeanTrackLikelihood(caloHits);
+}
+
 } // namespace lar_dl_content
