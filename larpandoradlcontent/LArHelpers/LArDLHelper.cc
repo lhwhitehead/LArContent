@@ -8,10 +8,13 @@
 
 #include "larpandoradlcontent/LArHelpers/LArDLHelper.h"
 
-namespace lar_dl_content
-{
+#include "larpandoracontent/LArObjects/LArCaloHit.h"
 
 using namespace pandora;
+using namespace lar_content;
+
+namespace lar_dl_content
+{
 
 StatusCode LArDLHelper::LoadModel(const std::string &filename, LArDLHelper::TorchModel &model)
 {
@@ -41,6 +44,31 @@ void LArDLHelper::InitialiseInput(const at::IntArrayRef dimensions, TorchInput &
 void LArDLHelper::Forward(TorchModel &model, const TorchInputVector &input, TorchOutput &output)
 {
     output = model.forward(input).toTensor();
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+float LArDLHelper::GetMeanTrackLikelihood(const CaloHitList &caloHits)
+{
+    FloatVector trackLikelihoods;
+    try
+    {
+        for (const CaloHit *pCaloHit : caloHits)
+        {
+            const LArCaloHit *pLArCaloHit{dynamic_cast<const LArCaloHit *>(pCaloHit)};
+            const float pTrack{pLArCaloHit->GetTrackProbability()};
+            const float pShower{pLArCaloHit->GetShowerProbability()};
+            if ((pTrack + pShower) > std::numeric_limits<float>::epsilon())
+                trackLikelihoods.emplace_back(pTrack / (pTrack + pShower));
+        }
+    }
+    catch (const StatusCodeException &)
+    {
+    }
+    
+    const unsigned long N{trackLikelihoods.size()};
+    const float meanTrackLikelihood{N > 0 ? std::accumulate(std::begin(trackLikelihoods), std::end(trackLikelihoods), 0.f) / N : 0.f};
+    return meanTrackLikelihood;
 }
 
 } // namespace lar_dl_content

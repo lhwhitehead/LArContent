@@ -12,6 +12,7 @@
 #include <torch/torch.h>
 
 #include "Pandora/StatusCodes.h"
+#include "larpandoracontent/LArObjects/LArCaloHit.h"
 
 namespace lar_dl_content
 {
@@ -53,6 +54,15 @@ public:
      *  @param  output the tensor to store the output in
      */
     static void Forward(TorchModel &model, const TorchInputVector &input, TorchOutput &output);
+
+    /**
+     *  @brief  Get the mean track likelihood for a CaloHitList
+     *
+     *  @param  input CaloHitList
+     *
+     *  @return mean track likelihood score
+     */
+    static float GetMeanTrackLikelihood(const pandora::CaloHitList &caloHits); 
 };
 
 } // namespace lar_dl_content

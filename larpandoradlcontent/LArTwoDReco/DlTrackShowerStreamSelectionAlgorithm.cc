@@ -10,9 +10,7 @@
 
 #include "larpandoradlcontent/LArTwoDReco/DlTrackShowerStreamSelectionAlgorithm.h"
 
-#include "larpandoracontent/LArHelpers/LArMCParticleHelper.h"
-#include "larpandoracontent/LArHelpers/LArMonitoringHelper.h"
-
+#include "larpandoradlcontent/LArHelpers/LArDLHelper.h"
 #include "larpandoracontent/LArObjects/LArCaloHit.h"
 
 #include <numeric>
@@ -35,31 +33,12 @@ StatusCode DlTrackShowerStreamSelectionAlgorithm::AllocateToStreams(const Cluste
     orderedCaloHitList.FillCaloHitList(caloHits);
     const CaloHitList &isolatedHits{pCluster->GetIsolatedCaloHitList()};
     caloHits.insert(caloHits.end(), isolatedHits.begin(), isolatedHits.end());
-    FloatVector trackLikelihoods;
-    try
-    {
-        for (const CaloHit *pCaloHit : caloHits)
-        {
-            const LArCaloHit *pLArCaloHit{dynamic_cast<const LArCaloHit *>(pCaloHit)};
-            const float pTrack{pLArCaloHit->GetTrackProbability()};
-            const float pShower{pLArCaloHit->GetShowerProbability()};
-            if ((pTrack + pShower) > std::numeric_limits<float>::epsilon())
-                trackLikelihoods.emplace_back(pTrack / (pTrack + pShower));
-        }
 
-        const unsigned long N{trackLikelihoods.size()};
-        if (N > 0)
-        {
-            float mean{std::accumulate(std::begin(trackLikelihoods), std::end(trackLikelihoods), 0.f) / N};
-            if (mean >= m_trackLikelihoodThreshold)
-                m_clusterListMap.at(m_trackListName).emplace_back(pCluster);
-            else
-                m_clusterListMap.at(m_showerListName).emplace_back(pCluster);
-        }
-    }
-    catch (const StatusCodeException &)
-    {
-    }
+    const float meanTrackLikelihood = LArDLHelper::GetMeanTrackLikelihood(caloHits);
+    if (meanTrackLikelihood >= m_trackLikelihoodThreshold)
+        m_clusterListMap.at(m_trackListName).emplace_back(pCluster);
+    else
+        m_clusterListMap.at(m_showerListName).emplace_back(pCluster);
 
     return STATUS_CODE_SUCCESS;
 }

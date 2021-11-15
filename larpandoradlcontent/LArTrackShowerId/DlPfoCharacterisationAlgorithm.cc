@@ -8,6 +8,7 @@
 
 #include "Pandora/AlgorithmHeaders.h"
 
+#include "larpandoradlcontent/LArHelpers/LArDLHelper.h"
 #include "larpandoracontent/LArHelpers/LArPfoHelper.h"
 #include "larpandoracontent/LArObjects/LArCaloHit.h"
 
@@ -35,33 +36,12 @@ bool DlPfoCharacterisationAlgorithm::IsClearTrack(const Cluster *const pCluster)
     orderedCaloHitList.FillCaloHitList(caloHits);
     const CaloHitList &isolatedHits{pCluster->GetIsolatedCaloHitList()};
     caloHits.insert(caloHits.end(), isolatedHits.begin(), isolatedHits.end());
-    FloatVector trackLikelihoods;
-    try
-    {
-        for (const CaloHit *pCaloHit : caloHits)
-        {
-            const LArCaloHit *pLArCaloHit{dynamic_cast<const LArCaloHit *>(pCaloHit)};
-            const float pTrack{pLArCaloHit->GetTrackProbability()};
-            const float pShower{pLArCaloHit->GetShowerProbability()};
-            if ((pTrack + pShower) > std::numeric_limits<float>::epsilon())
-                trackLikelihoods.emplace_back(pTrack / (pTrack + pShower));
-        }
 
-        const unsigned long N{trackLikelihoods.size()};
-        if (N > 0)
-        {
-            float mean{std::accumulate(std::begin(trackLikelihoods), std::end(trackLikelihoods), 0.f) / N};
-            if (mean >= m_trackLikelihoodThreshold)
-                return true;
-            else
-                return false;
-        }
-    }
-    catch (const StatusCodeException &)
-    {
-    }
-
-    return true;
+    const float meanTrackLikelihood = LArDLHelper::GetMeanTrackLikelihood(caloHits);
+    if (meanTrackLikelihood >= m_trackLikelihoodThreshold)
+        return true;
+    else
+        return false;
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------
@@ -70,7 +50,7 @@ bool DlPfoCharacterisationAlgorithm::IsClearTrack(const pandora::ParticleFlowObj
 {
     ClusterList allClusters;
     LArPfoHelper::GetTwoDClusterList(pPfo, allClusters);
-    FloatVector trackLikelihoods;
+    FloatVector clusterMeanTrackLikelihoods;
     for (const Cluster *pCluster : allClusters)
     {
         const OrderedCaloHitList &orderedCaloHitList{pCluster->GetOrderedCaloHitList()};
@@ -78,26 +58,15 @@ bool DlPfoCharacterisationAlgorithm::IsClearTrack(const pandora::ParticleFlowObj
         orderedCaloHitList.FillCaloHitList(caloHits);
         const CaloHitList &isolatedHits{pCluster->GetIsolatedCaloHitList()};
         caloHits.insert(caloHits.end(), isolatedHits.begin(), isolatedHits.end());
-        try
-        {
-            for (const CaloHit *pCaloHit : caloHits)
-            {
-                const LArCaloHit *pLArCaloHit{dynamic_cast<const LArCaloHit *>(pCaloHit)};
-                const float pTrack{pLArCaloHit->GetTrackProbability()};
-                const float pShower{pLArCaloHit->GetShowerProbability()};
-                if ((pTrack + pShower) > std::numeric_limits<float>::epsilon())
-                    trackLikelihoods.emplace_back(pTrack / (pTrack + pShower));
-            }
-        }
-        catch (const StatusCodeException &)
-        {
-        }
+
+        const float meanTrackLikelihood = LArDLHelper::GetMeanTrackLikelihood(caloHits);
+        clusterMeanTrackLikelihoods.emplace_back(meanTrackLikelihood);
     }
 
-    const unsigned long N{trackLikelihoods.size()};
+    const unsigned long N{clusterMeanTrackLikelihoods.size()};
     if (N > 0)
     {
-        float mean{std::accumulate(std::begin(trackLikelihoods), std::end(trackLikelihoods), 0.f) / N};
+        const float mean{std::accumulate(std::begin(clusterMeanTrackLikelihoods), std::end(clusterMeanTrackLikelihoods), 0.f) / N};
         if (mean >= m_trackLikelihoodThreshold)
             return true;
         else
