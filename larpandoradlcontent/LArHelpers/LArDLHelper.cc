@@ -52,11 +52,11 @@ float LArDLHelper::GetTrackLikelihood(const CaloHit *const pCaloHit)
 {
     float trackLikelihood{0.f};
     try{
-            const LArCaloHit *pLArCaloHit{dynamic_cast<const LArCaloHit *>(pCaloHit)};
-            const float pTrack{pLArCaloHit->GetTrackProbability()};
-            const float pShower{pLArCaloHit->GetShowerProbability()};
-            if ((pTrack + pShower) > std::numeric_limits<float>::epsilon())
-                trackLikelihood = pTrack / (pTrack + pShower);
+        const LArCaloHit *pLArCaloHit{dynamic_cast<const LArCaloHit *>(pCaloHit)};
+        const float pTrack{pLArCaloHit->GetTrackProbability()};
+        const float pShower{pLArCaloHit->GetShowerProbability()};
+        if ((pTrack + pShower) > std::numeric_limits<float>::epsilon())
+            trackLikelihood = pTrack / (pTrack + pShower);
     }
     catch (const StatusCodeException &)
     {
