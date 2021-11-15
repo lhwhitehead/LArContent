@@ -14,6 +14,11 @@
 #include "Pandora/StatusCodes.h"
 #include "larpandoracontent/LArObjects/LArCaloHit.h"
 
+namespace pandora
+{
+class Cluster;
+}
+
 namespace lar_dl_content
 {
 
@@ -56,22 +61,31 @@ public:
     static void Forward(TorchModel &model, const TorchInputVector &input, TorchOutput &output);
 
     /**
+     *  @brief  Get the track likelihood for a CaloHit
+     *
+     *  @param  caloHit input CaloHit
+     *
+     *  @return track likelihood score
+     */
+    static float GetTrackLikelihood(const pandora::CaloHit *const caloHit);
+
+    /**
      *  @brief  Get the mean track likelihood for a CaloHitList
      *
-     *  @param  input CaloHitList
+     *  @param  caloHits input CaloHitList
      *
      *  @return mean track likelihood score
      */
     static float GetMeanTrackLikelihood(const pandora::CaloHitList &caloHits); 
 
     /**
-     *  @brief  Get the mean shower likelihood for a CaloHitList
+     *  @brief  Get the mean track likelihood for a Cluster
      *
-     *  @param  input CaloHitList
+     *  @param  pCluster input Cluster object 
      *
-     *  @return mean shower likelihood score
+     *  @return mean track likelihood score
      */
-    static float GetMeanShowerLikelihood(const pandora::CaloHitList &caloHits); 
+    static float GetMeanTrackLikelihood(const pandora::Cluster *const pCluster);
 };
 
 } // namespace lar_dl_content

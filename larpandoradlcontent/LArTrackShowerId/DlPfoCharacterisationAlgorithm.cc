@@ -31,13 +31,7 @@ DlPfoCharacterisationAlgorithm::DlPfoCharacterisationAlgorithm() :
 
 bool DlPfoCharacterisationAlgorithm::IsClearTrack(const Cluster *const pCluster) const
 {
-    const OrderedCaloHitList &orderedCaloHitList{pCluster->GetOrderedCaloHitList()};
-    CaloHitList caloHits;
-    orderedCaloHitList.FillCaloHitList(caloHits);
-    const CaloHitList &isolatedHits{pCluster->GetIsolatedCaloHitList()};
-    caloHits.insert(caloHits.end(), isolatedHits.begin(), isolatedHits.end());
-
-    const float meanTrackLikelihood = LArDLHelper::GetMeanTrackLikelihood(caloHits);
+    const float meanTrackLikelihood = LArDLHelper::GetMeanTrackLikelihood(pCluster);
     if (meanTrackLikelihood >= m_trackLikelihoodThreshold)
         return true;
     else
@@ -53,13 +47,7 @@ bool DlPfoCharacterisationAlgorithm::IsClearTrack(const pandora::ParticleFlowObj
     FloatVector clusterMeanTrackLikelihoods;
     for (const Cluster *pCluster : allClusters)
     {
-        const OrderedCaloHitList &orderedCaloHitList{pCluster->GetOrderedCaloHitList()};
-        CaloHitList caloHits;
-        orderedCaloHitList.FillCaloHitList(caloHits);
-        const CaloHitList &isolatedHits{pCluster->GetIsolatedCaloHitList()};
-        caloHits.insert(caloHits.end(), isolatedHits.begin(), isolatedHits.end());
-
-        const float meanTrackLikelihood = LArDLHelper::GetMeanTrackLikelihood(caloHits);
+        const float meanTrackLikelihood = LArDLHelper::GetMeanTrackLikelihood(pCluster);
         clusterMeanTrackLikelihoods.emplace_back(meanTrackLikelihood);
     }
 

@@ -8,6 +8,7 @@
 
 #include "larpandoradlcontent/LArHelpers/LArDLHelper.h"
 
+#include "Objects/Cluster.h"
 #include "larpandoracontent/LArObjects/LArCaloHit.h"
 
 using namespace pandora;
@@ -47,6 +48,23 @@ void LArDLHelper::Forward(TorchModel &model, const TorchInputVector &input, Torc
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------
+float LArDLHelper::GetTrackLikelihood(const CaloHit *const pCaloHit)
+{
+    float trackLikelihood{0.f};
+    try{
+            const LArCaloHit *pLArCaloHit{dynamic_cast<const LArCaloHit *>(pCaloHit)};
+            const float pTrack{pLArCaloHit->GetTrackProbability()};
+            const float pShower{pLArCaloHit->GetShowerProbability()};
+            if ((pTrack + pShower) > std::numeric_limits<float>::epsilon())
+                trackLikelihood = pTrack / (pTrack + pShower);
+    }
+    catch (const StatusCodeException &)
+    {
+    }
+    return trackLikelihood;
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
 
 float LArDLHelper::GetMeanTrackLikelihood(const CaloHitList &caloHits)
 {
@@ -54,13 +72,7 @@ float LArDLHelper::GetMeanTrackLikelihood(const CaloHitList &caloHits)
     try
     {
         for (const CaloHit *pCaloHit : caloHits)
-        {
-            const LArCaloHit *pLArCaloHit{dynamic_cast<const LArCaloHit *>(pCaloHit)};
-            const float pTrack{pLArCaloHit->GetTrackProbability()};
-            const float pShower{pLArCaloHit->GetShowerProbability()};
-            if ((pTrack + pShower) > std::numeric_limits<float>::epsilon())
-                trackLikelihoods.emplace_back(pTrack / (pTrack + pShower));
-        }
+            trackLikelihoods.emplace_back(LArDLHelper::GetTrackLikelihood(pCaloHit));
     }
     catch (const StatusCodeException &)
     {
@@ -73,9 +85,15 @@ float LArDLHelper::GetMeanTrackLikelihood(const CaloHitList &caloHits)
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
-float LArDLHelper::GetMeanShowerLikelihood(const CaloHitList &caloHits)
+float LArDLHelper::GetMeanTrackLikelihood(const Cluster *const pCluster)
 {
-    return 1.f - LArDLHelper::GetMeanTrackLikelihood(caloHits);
+    const OrderedCaloHitList &orderedCaloHitList{pCluster->GetOrderedCaloHitList()};
+    CaloHitList caloHits;
+    orderedCaloHitList.FillCaloHitList(caloHits);
+    const CaloHitList &isolatedHits{pCluster->GetIsolatedCaloHitList()};
+    caloHits.insert(caloHits.end(), isolatedHits.begin(), isolatedHits.end());
+
+    return LArDLHelper::GetMeanTrackLikelihood(caloHits);
 }
 
 } // namespace lar_dl_content

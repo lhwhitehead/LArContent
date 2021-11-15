@@ -28,13 +28,7 @@ DlTrackShowerStreamSelectionAlgorithm::DlTrackShowerStreamSelectionAlgorithm() :
 
 StatusCode DlTrackShowerStreamSelectionAlgorithm::AllocateToStreams(const Cluster *const pCluster)
 {
-    const OrderedCaloHitList &orderedCaloHitList{pCluster->GetOrderedCaloHitList()};
-    CaloHitList caloHits;
-    orderedCaloHitList.FillCaloHitList(caloHits);
-    const CaloHitList &isolatedHits{pCluster->GetIsolatedCaloHitList()};
-    caloHits.insert(caloHits.end(), isolatedHits.begin(), isolatedHits.end());
-
-    const float meanTrackLikelihood = LArDLHelper::GetMeanTrackLikelihood(caloHits);
+    const float meanTrackLikelihood = LArDLHelper::GetMeanTrackLikelihood(pCluster);
     if (meanTrackLikelihood >= m_trackLikelihoodThreshold)
         m_clusterListMap.at(m_trackListName).emplace_back(pCluster);
     else
