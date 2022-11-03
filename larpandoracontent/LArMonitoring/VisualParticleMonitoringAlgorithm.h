@@ -101,6 +101,7 @@ private:
     float m_transparencyThresholdE; ///< Cell energy for which transparency is saturated (0%, fully opaque)
     float m_energyScaleThresholdE;  ///< Cell energy for which color is at top end of continous color palette
     float m_scalingFactor;          ///< TEve works with [cm], Pandora usually works with [mm] (but LArContent went with cm too)
+    bool m_useHighVisibility;       ///< Use high visibility mode with bright colours on a dark background
 };
 
 } // namespace lar_content

@@ -33,6 +33,7 @@ VisualMonitoringAlgorithm::VisualMonitoringAlgorithm() :
     m_transparencyThresholdE(-1.f),
     m_energyScaleThresholdE(1.f),
     m_scalingFactor(1.f),
+    m_useHighVisibility(false),
     m_showPfoVertices(true),
     m_showPfoHierarchy(true)
 {
@@ -44,7 +45,7 @@ StatusCode VisualMonitoringAlgorithm::Run()
 {
     PANDORA_MONITORING_API(SetEveDisplayParameters(this->GetPandora(), m_showDetector,
         (m_detectorView.find("xz") != std::string::npos) ? DETECTOR_VIEW_XZ : (m_detectorView.find("xy") != std::string::npos) ? DETECTOR_VIEW_XY : DETECTOR_VIEW_DEFAULT,
-        m_transparencyThresholdE, m_energyScaleThresholdE, m_scalingFactor));
+        m_transparencyThresholdE, m_energyScaleThresholdE, m_scalingFactor, m_useHighVisibility));
 
     // Show current mc particles
     if (m_showCurrentMCParticles)
@@ -200,7 +201,7 @@ void VisualMonitoringAlgorithm::VisualizeCaloHitList(const std::string &listName
     }
 
     PANDORA_MONITORING_API(VisualizeCaloHits(this->GetPandora(), &caloHitList, listName.empty() ? "CurrentCaloHits" : listName.c_str(),
-        (m_hitColors.find("energy") != std::string::npos ? AUTOENERGY : GRAY)));
+        (m_hitColors.find("energy") != std::string::npos ? AUTOENERGY : (m_useHighVisibility ? YELLOW : GRAY))));
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------
@@ -422,6 +423,8 @@ StatusCode VisualMonitoringAlgorithm::ReadSettings(const TiXmlHandle xmlHandle)
         STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "EnergyScaleThresholdE", m_energyScaleThresholdE));
 
     PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "ScalingFactor", m_scalingFactor));
+
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "UseHighVisibility", m_useHighVisibility));
 
     PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "ShowPfoVertices", m_showPfoVertices));
 

@@ -93,7 +93,8 @@ void VisualParticleMonitoringAlgorithm::VisualizeIndependentMC(const LArMCPartic
         return;
 
     PANDORA_MONITORING_API(
-        SetEveDisplayParameters(this->GetPandora(), true, DETECTOR_VIEW_XZ, m_transparencyThresholdE, m_energyScaleThresholdE, m_scalingFactor));
+        SetEveDisplayParameters(this->GetPandora(), true, DETECTOR_VIEW_XZ, m_transparencyThresholdE, m_energyScaleThresholdE, m_scalingFactor,
+        m_useHighVisibility));
     LArMCParticleHelper::GetBreadthFirstHierarchyRepresentation(mcMap.begin()->first, linearisedMC);
 
     size_t colorIdx{0};
@@ -188,7 +189,8 @@ void VisualParticleMonitoringAlgorithm::VisualizeMCByPdgCode(const LArMCParticle
     }
 
     PANDORA_MONITORING_API(
-        SetEveDisplayParameters(this->GetPandora(), true, DETECTOR_VIEW_XZ, m_transparencyThresholdE, m_energyScaleThresholdE, m_scalingFactor));
+        SetEveDisplayParameters(this->GetPandora(), true, DETECTOR_VIEW_XZ, m_transparencyThresholdE, m_energyScaleThresholdE, m_scalingFactor,
+            m_useHighVisibility));
 
     for (const auto &[key, value] : keys)
     {
@@ -239,7 +241,8 @@ void VisualParticleMonitoringAlgorithm::VisualizeIndependentPfo(const PfoList &p
         return;
 
     PANDORA_MONITORING_API(
-        SetEveDisplayParameters(this->GetPandora(), true, DETECTOR_VIEW_XZ, m_transparencyThresholdE, m_energyScaleThresholdE, m_scalingFactor));
+        SetEveDisplayParameters(this->GetPandora(), true, DETECTOR_VIEW_XZ, m_transparencyThresholdE, m_energyScaleThresholdE, m_scalingFactor,
+            m_useHighVisibility));
     LArPfoHelper::GetBreadthFirstHierarchyRepresentation(pfoList.front(), linearisedPfo);
 
     size_t colorIdx{0};
@@ -323,7 +326,8 @@ void VisualParticleMonitoringAlgorithm::VisualizePfoByParticleId(const PfoList &
         return;
 
     PANDORA_MONITORING_API(
-        SetEveDisplayParameters(this->GetPandora(), true, DETECTOR_VIEW_XZ, m_transparencyThresholdE, m_energyScaleThresholdE, m_scalingFactor));
+        SetEveDisplayParameters(this->GetPandora(), true, DETECTOR_VIEW_XZ, m_transparencyThresholdE, m_energyScaleThresholdE, m_scalingFactor,
+            m_useHighVisibility));
     LArPfoHelper::GetBreadthFirstHierarchyRepresentation(pfoList.front(), linearisedPfo);
 
     int pfoIdx{0};
@@ -435,6 +439,7 @@ StatusCode VisualParticleMonitoringAlgorithm::ReadSettings(const TiXmlHandle xml
     PANDORA_RETURN_RESULT_IF_AND_IF(
         STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "EnergyScaleThresholdE", m_energyScaleThresholdE));
     PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "ScalingFactor", m_scalingFactor));
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "UseHighVisibility", m_useHighVisibility));
 
     return STATUS_CODE_SUCCESS;
 }
