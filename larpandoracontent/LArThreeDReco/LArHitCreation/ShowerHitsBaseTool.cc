@@ -8,6 +8,7 @@
 
 #include "Pandora/AlgorithmHeaders.h"
 
+#include "larpandoracontent/LArHelpers/LArMCParticleHelper.h"
 #include "larpandoracontent/LArHelpers/LArPfoHelper.h"
 #include "larpandoracontent/LArObjects/LArCaloHit.h"
 
@@ -20,8 +21,7 @@ namespace lar_content
 {
 
 ShowerHitsBaseTool::ShowerHitsBaseTool() :
-    m_xTolerance(1.f),
-    m_strictBounding(false)
+    m_xTolerance(1.f)
 {
 }
 
@@ -32,6 +32,8 @@ void ShowerHitsBaseTool::Run(ThreeDHitCreationAlgorithm *const pAlgorithm, const
 {
     if (PandoraContentApi::GetSettings(*pAlgorithm)->ShouldDisplayAlgorithmInfo())
         std::cout << "----> Running Algorithm Tool: " << this->GetInstanceName() << ", " << this->GetType() << std::endl;
+
+    m_useGeometryConstraints = pAlgorithm->GetUseDetailedGeometry();
 
     try
     {
@@ -61,7 +63,7 @@ void ShowerHitsBaseTool::GetShowerHits3D(const CaloHitVector &inputTwoDHits, con
     {
         try
         {
-            const unsigned int daughterVolumeId{m_strictBounding ? dynamic_cast<const LArCaloHit *>(pCaloHit2D)->GetDaughterVolumeId() : 0};
+            const unsigned int daughterVolumeId{dynamic_cast<const LArCaloHit *>(pCaloHit2D)->GetDaughterVolumeId()};
             CaloHitVector filteredHits1, filteredHits2;
             this->FilterCaloHits(pCaloHit2D->GetPositionVector().GetX(), daughterVolumeId, caloHitVector1, filteredHits1);
             this->FilterCaloHits(pCaloHit2D->GetPositionVector().GetX(), daughterVolumeId, caloHitVector2, filteredHits2);
@@ -85,7 +87,7 @@ void ShowerHitsBaseTool::FilterCaloHits(
 {
     for (const CaloHit *const pCaloHit : inputCaloHitVector)
     {
-        if (m_strictBounding)
+        if (m_useGeometryConstraints)
         {
             const LArCaloHit *pLArCaloHit{dynamic_cast<const LArCaloHit *>(pCaloHit)};
 
@@ -108,8 +110,6 @@ void ShowerHitsBaseTool::FilterCaloHits(
 StatusCode ShowerHitsBaseTool::ReadSettings(const TiXmlHandle xmlHandle)
 {
     PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "XTolerance", m_xTolerance));
-    PANDORA_RETURN_RESULT_IF_AND_IF(
-        STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "StrictBoundsChecking", m_strictBounding));
 
     return HitCreationBaseTool::ReadSettings(xmlHandle);
 }

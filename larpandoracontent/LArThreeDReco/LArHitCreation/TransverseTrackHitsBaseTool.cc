@@ -21,6 +21,7 @@ namespace lar_content
 void TransverseTrackHitsBaseTool::GetTrackHits3D(
     const CaloHitVector &inputTwoDHits, const MatchedSlidingFitMap &matchedSlidingFitMap, ProtoHitVector &protoHitVector) const
 {
+
     for (const CaloHit *const pCaloHit2D : inputTwoDHits)
     {
         try
@@ -31,6 +32,7 @@ void TransverseTrackHitsBaseTool::GetTrackHits3D(
 
             if (protoHit.IsPositionSet() && (protoHit.GetChi2() < m_chiSquaredCut))
                 protoHitVector.push_back(protoHit);
+
         }
         catch (StatusCodeException &)
         {
@@ -69,7 +71,9 @@ double TransverseTrackHitsBaseTool::GetTransverseChi2(const CartesianVector &pos
     const float minX(std::min(minLayerX, maxLayerX));
     const float maxX(std::max(minLayerX, maxLayerX));
 
-    if (((position2D.GetX() - minX) > -std::numeric_limits<float>::epsilon()) && ((position2D.GetX() - maxX) < +std::numeric_limits<float>::epsilon()))
+    constexpr float eps{std::numeric_limits<float>::epsilon()};
+
+    if ((position2D.GetX() > (minX - eps)) && (position2D.GetX() < (maxX + eps)))
         return 0.;
 
     const float minLayerDistanceSquared((position2D - fitResult.GetGlobalMinLayerPosition()).GetMagnitudeSquared());

@@ -720,4 +720,54 @@ const LArReadoutChannel &LArGeometryHelper::GetReadoutChannel(const Pandora &pan
     return readoutUnit.GetReadoutChannel(caloHit.GetChannelId());
 }
 
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+bool LArGeometryHelper::IsPoint2DInReadoutVolume(const pandora::CartesianVector &point, const pandora::LArReadoutVolume &volume, const HitType &view)
+{
+    const float wireCoordinate{point.GetZ()};
+
+    for (auto const &readoutUnit : volume.GetReadoutUnits())
+    {
+        if (readoutUnit.GetView() != view)
+            continue;
+
+        const float pitch{readoutUnit.GetPitch()};
+        const float refPos1{readoutUnit.GetReferenceCoordinate()};
+        const float refPos2{refPos1 + pitch * readoutUnit.GetReadoutChannels().size()};
+
+        const float minPos{std::min(refPos1, refPos2)};
+        const float maxPos{std::max(refPos1, refPos2)};
+
+        if (wireCoordinate > (minPos - 0.5 * pitch) && wireCoordinate < (maxPos + 0.5 * pitch))
+            return true;
+        else
+            return false;
+    }
+
+    return false;
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+bool LArGeometryHelper::IsPoint3DInReadoutVolume(const pandora::CartesianVector &point, const pandora::LArReadoutVolume &volume)
+{
+    const CartesianVector &centre{volume.GetCenter()};
+    const CartesianVector &size{volume.GetSize()};
+
+    if (point.GetX() < (centre.GetX() - 0.5 * size.GetX()))
+        return false;
+    if (point.GetX() > (centre.GetX() + 0.5 * size.GetX()))
+        return false;
+    if (point.GetY() < (centre.GetY() - 0.5 * size.GetY()))
+        return false;
+    if (point.GetY() > (centre.GetY() + 0.5 * size.GetY()))
+        return false;
+    if (point.GetZ() < (centre.GetZ() - 0.5 * size.GetZ()))
+        return false;
+    if (point.GetZ() > (centre.GetZ() + 0.5 * size.GetZ()))
+        return false;
+
+    return true;
+}
+
 } // namespace lar_content

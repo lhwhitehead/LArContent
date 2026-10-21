@@ -8,6 +8,8 @@
 
 #include "Pandora/AlgorithmHeaders.h"
 
+#include "larpandoracontent/LArHelpers/LArGeometryHelper.h"
+
 #include "larpandoracontent/LArThreeDReco/LArHitCreation/MultiValuedTransverseTrackHitsTool.h"
 
 using namespace pandora;
@@ -40,6 +42,22 @@ void MultiValuedTransverseTrackHitsTool::GetTransverseTrackHit3D(const MatchedSl
         const TwoDSlidingFitResult &fitResult2 = iter2->second;
         PANDORA_THROW_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=,
             fitResult2.GetGlobalFitPositionListAtX(pCaloHit2D->GetPositionVector().GetX(), fitPositionList2));
+    }
+
+    // Check all of these positions to make sure they are in the correct volume
+    if (m_useGeometryConstraints)
+    {
+        CartesianPointVector goodPoints1, goodPoints2;
+        const LArReadoutVolume &volume{LArGeometryHelper::GetReadoutVolume(this->GetPandora(), *dynamic_cast<const LArCaloHit*>(pCaloHit2D))};
+        for (auto const &fitPos : fitPositionList1)
+            if (LArGeometryHelper::IsPoint2DInReadoutVolume(fitPos, volume, hitType1))
+                goodPoints1.push_back(fitPos);
+        fitPositionList1 = goodPoints1;        
+    
+        for (auto const &fitPos : fitPositionList2)
+            if (LArGeometryHelper::IsPoint2DInReadoutVolume(fitPos, volume, hitType2))
+                goodPoints2.push_back(fitPos);
+        fitPositionList2 = goodPoints2;
     }
 
     unsigned int nViews(1);

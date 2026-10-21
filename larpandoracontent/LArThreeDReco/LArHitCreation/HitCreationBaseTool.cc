@@ -19,7 +19,8 @@ namespace lar_content
 
 HitCreationBaseTool::HitCreationBaseTool() :
     m_sigmaX2(1.),
-    m_chiSquaredCut(1.)
+    m_chiSquaredCut(1.),
+    m_useGeometryConstraints(false)
 {
 }
 
@@ -107,6 +108,13 @@ void HitCreationBaseTool::GetBestPosition3D(const HitType hitType1, const HitTyp
     const double deltaX2(pCaloHit2D->GetPositionVector().GetX() - fitPosition2.GetX());
     const double chi2X(((deltaX1 * deltaX1) / m_sigmaX2) + ((deltaX2 * deltaX2) / m_sigmaX2));
 
+    if (m_useGeometryConstraints)
+    {
+        const LArReadoutVolume &volume{LArGeometryHelper::GetReadoutVolume(this->GetPandora(), *dynamic_cast<const LArCaloHit*>(pCaloHit2D))};
+        if (!LArGeometryHelper::IsPoint3DInReadoutVolume(position3D, volume))
+            chi2 = 999;
+    }
+
     protoHit.SetPosition3D(position3D, chi2 + chi2X);
     protoHit.AddTrajectorySample(TrajectorySample(fitPosition1, hitType1, sigmaFit));
     protoHit.AddTrajectorySample(TrajectorySample(fitPosition2, hitType2, sigmaFit));
@@ -130,8 +138,17 @@ void HitCreationBaseTool::GetBestPosition3D(const HitType hitType, const Cartesi
 
     // ATTN Replace chi2 from LArGeometryHelper for consistency with three-view treatment (purely a measure of delta x)
     const double deltaX(pCaloHit2D->GetPositionVector().GetX() - fitPosition.GetX());
-    const double chi2X((deltaX * deltaX) / m_sigmaX2);
+    double chi2X((deltaX * deltaX) / m_sigmaX2);
 
+    if (m_useGeometryConstraints)
+    {
+        const LArReadoutVolume &volume{LArGeometryHelper::GetReadoutVolume(this->GetPandora(), *dynamic_cast<const LArCaloHit*>(pCaloHit2D))};
+        if (!LArGeometryHelper::IsPoint3DInReadoutVolume(position3D, volume))
+        {
+//            std::cout << "HitCreationBaseTool::GetBestPositon3D (2 view): 3D point not in the same readout volume as the 2D hit" << std::endl;
+            chi2X = 999;
+        }
+    }
     protoHit.SetPosition3D(position3D, chi2X);
     protoHit.AddTrajectorySample(TrajectorySample(fitPosition, hitType, sigmaFit));
 }
@@ -153,6 +170,8 @@ StatusCode HitCreationBaseTool::ReadSettings(const pandora::TiXmlHandle xmlHandl
     }
 
     PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "ChiSquaredCut", m_chiSquaredCut));
+
+//    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "UseGeometryConstraints", m_useGeometryConstraints));
 
     return STATUS_CODE_SUCCESS;
 }

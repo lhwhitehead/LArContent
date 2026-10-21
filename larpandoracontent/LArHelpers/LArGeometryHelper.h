@@ -353,6 +353,9 @@ public:
      *  @param  caloHit the calo hit
      */
     static const pandora::LArReadoutChannel &GetReadoutChannel(const pandora::Pandora &pandora, const LArCaloHit &caloHit);
+
+    static bool IsPoint2DInReadoutVolume(const pandora::CartesianVector &point, const pandora::LArReadoutVolume &volume, const pandora::HitType &view);
+    static bool IsPoint3DInReadoutVolume(const pandora::CartesianVector &point, const pandora::LArReadoutVolume &volume);
 };
 
 //------------------------------------------------------------------------------------------------------------------------------------------

@@ -51,7 +51,18 @@ void ClearLongitudinalTrackHitsTool::GetLongitudinalTrackHit3D(
             throw StatusCodeException(statusCode);
 
         if (STATUS_CODE_SUCCESS == statusCode)
-            fitPositionList1.push_back(position1);
+        {
+            if (m_useGeometryConstraints)
+            {
+                const LArReadoutVolume &volume{LArGeometryHelper::GetReadoutVolume(this->GetPandora(), *dynamic_cast<const LArCaloHit*>(pCaloHit2D))};
+                if (LArGeometryHelper::IsPoint2DInReadoutVolume(position1, volume, hitType1))
+                    fitPositionList1.push_back(position1);
+//                else
+//                    std::cout << "Extrapolated position not in expected volume" << std::endl;
+            }
+            else
+                fitPositionList1.push_back(position1);
+        }
     }
 
     MatchedSlidingFitMap::const_iterator fIter2 = matchedSlidingFitMap.find(hitType2);
@@ -69,7 +80,18 @@ void ClearLongitudinalTrackHitsTool::GetLongitudinalTrackHit3D(
             throw StatusCodeException(statusCode);
 
         if (STATUS_CODE_SUCCESS == statusCode)
-            fitPositionList2.push_back(position2);
+        {
+            if (m_useGeometryConstraints)
+            {
+                const LArReadoutVolume &volume{LArGeometryHelper::GetReadoutVolume(this->GetPandora(), *dynamic_cast<const LArCaloHit*>(pCaloHit2D))};
+                if (LArGeometryHelper::IsPoint2DInReadoutVolume(position2, volume, hitType2))
+                    fitPositionList2.push_back(position2);
+//                else
+//                    std::cout << "Extrapolated position not in expected volume" << std::endl;
+            }
+            else
+                fitPositionList2.push_back(position2);
+        }
     }
 
     unsigned int nViews(1);

@@ -54,139 +54,83 @@ void LongitudinalTrackHitsBaseTool::GetTrackHits3D(
 void LongitudinalTrackHitsBaseTool::GetVertexAndEndPositions(const MatchedSlidingFitMap &inputSlidingFitMap,
     MatchedSlidingFitMap &outputSlidingFitMap, CartesianVector &bestVtx3D, CartesianVector &bestEnd3D) const
 {
-    // TODO Tidy up: The code below is quite repetitive...
-    MatchedSlidingFitMap::const_iterator iterU = inputSlidingFitMap.find(TPC_VIEW_U);
-    const bool foundU(inputSlidingFitMap.end() != iterU);
+    const std::array<HitType, 3> hitTypes{TPC_VIEW_U, TPC_VIEW_V, TPC_VIEW_W};
+    const std::array<MatchedSlidingFitMap::const_iterator, 3> iterators{inputSlidingFitMap.find(TPC_VIEW_U), inputSlidingFitMap.find(TPC_VIEW_V), inputSlidingFitMap.find(TPC_VIEW_W)};
+    const std::array<bool, 3> found{iterators[0] != inputSlidingFitMap.end(), iterators[1] != inputSlidingFitMap.end(), iterators[2] != inputSlidingFitMap.end()};
 
-    MatchedSlidingFitMap::const_iterator iterV = inputSlidingFitMap.find(TPC_VIEW_V);
-    const bool foundV(inputSlidingFitMap.end() != iterV);
-
-    MatchedSlidingFitMap::const_iterator iterW = inputSlidingFitMap.find(TPC_VIEW_W);
-    const bool foundW(inputSlidingFitMap.end() != iterW);
-
-    bool useU(false), useV(false), useW(false);
+    std::array<bool, 3> useView{false, false, false};
     float bestChi2(std::numeric_limits<float>::max());
 
+    // Iterate over the forward / backward possibilities
     for (unsigned int iPermutation = 0; iPermutation < 4; ++iPermutation)
     {
-        const bool isForwardU((1 == iPermutation) ? false : true);
-        const bool isForwardV((2 == iPermutation) ? false : true);
-        const bool isForwardW((3 == iPermutation) ? false : true);
+        const std::array<bool, 3> isForward{iPermutation != 1, iPermutation != 2, iPermutation != 3};
 
-        CartesianVector vtxU(0.f, 0.f, 0.f), endU(0.f, 0.f, 0.f);
-        CartesianVector vtxV(0.f, 0.f, 0.f), endV(0.f, 0.f, 0.f);
-        CartesianVector vtxW(0.f, 0.f, 0.f), endW(0.f, 0.f, 0.f);
+        std::array<CartesianVector, 3> vtx{CartesianVector(0.f, 0.f, 0.f), CartesianVector(0.f, 0.f, 0.f), CartesianVector(0.f, 0.f, 0.f)};
+        std::array<CartesianVector, 3> end{CartesianVector(0.f, 0.f, 0.f), CartesianVector(0.f, 0.f, 0.f), CartesianVector(0.f, 0.f, 0.f)};
 
-        if (foundU)
+        // Iterate over the three views to get the start and end points
+        for (unsigned int v = 0; v < 3; ++v)
         {
-            const TwoDSlidingFitResult &slidingFitResultU = iterU->second;
-            vtxU = (isForwardU ? slidingFitResultU.GetGlobalMinLayerPosition() : slidingFitResultU.GetGlobalMaxLayerPosition());
-            endU = (isForwardU ? slidingFitResultU.GetGlobalMaxLayerPosition() : slidingFitResultU.GetGlobalMinLayerPosition());
+            if (!found[v])
+                continue;
+
+            const TwoDSlidingFitResult &slidingFitResult = iterators[v]->second;
+
+            vtx[v] = isForward[v] ? slidingFitResult.GetGlobalMinLayerPosition() : slidingFitResult.GetGlobalMaxLayerPosition();
+            end[v] = isForward[v] ? slidingFitResult.GetGlobalMaxLayerPosition() : slidingFitResult.GetGlobalMinLayerPosition();
         }
 
-        if (foundV)
-        {
-            const TwoDSlidingFitResult &slidingFitResultV = iterV->second;
-            vtxV = (isForwardV ? slidingFitResultV.GetGlobalMinLayerPosition() : slidingFitResultV.GetGlobalMaxLayerPosition());
-            endV = (isForwardV ? slidingFitResultV.GetGlobalMaxLayerPosition() : slidingFitResultV.GetGlobalMinLayerPosition());
-        }
-
-        if (foundW)
-        {
-            const TwoDSlidingFitResult &slidingFitResultW = iterW->second;
-            vtxW = (isForwardW ? slidingFitResultW.GetGlobalMinLayerPosition() : slidingFitResultW.GetGlobalMaxLayerPosition());
-            endW = (isForwardW ? slidingFitResultW.GetGlobalMaxLayerPosition() : slidingFitResultW.GetGlobalMinLayerPosition());
-        }
-
+        // Iterate over pairs of views (v1, v2) to get the best vertex and end points
         CartesianVector vtx3D(0.f, 0.f, 0.f), end3D(0.f, 0.f, 0.f);
         float vtxChi2(std::numeric_limits<float>::max()), endChi2(std::numeric_limits<float>::max());
-
-        if (foundU && foundV)
+        for (unsigned int v1 = 0; v1 < 3; ++v1)
         {
-            this->UpdateBestPosition(TPC_VIEW_U, TPC_VIEW_V, vtxU, vtxV, vtx3D, vtxChi2);
-            this->UpdateBestPosition(TPC_VIEW_U, TPC_VIEW_V, endU, endV, end3D, endChi2);
+            const unsigned int v2{(v1 + 1) % 3};
+        
+            if (!found[v1] || !found[v2])
+                continue;
+        
+            this->UpdateBestPosition(hitTypes[v1], hitTypes[v2], vtx[v1], vtx[v2], vtx3D, vtxChi2);
+            this->UpdateBestPosition(hitTypes[v1], hitTypes[v2], end[v1], end[v2], end3D, endChi2);
         }
 
-        if (foundV && foundW)
+        std::array<bool, 3> matched{false, false, false};
+        unsigned int matchedViews{0};
+        
+        for (unsigned int v = 0; v < 3; ++v)
         {
-            this->UpdateBestPosition(TPC_VIEW_V, TPC_VIEW_W, vtxV, vtxW, vtx3D, vtxChi2);
-            this->UpdateBestPosition(TPC_VIEW_V, TPC_VIEW_W, endV, endW, end3D, endChi2);
-        }
-
-        if (foundW && foundU)
-        {
-            this->UpdateBestPosition(TPC_VIEW_W, TPC_VIEW_U, vtxW, vtxU, vtx3D, vtxChi2);
-            this->UpdateBestPosition(TPC_VIEW_W, TPC_VIEW_U, endW, endU, end3D, endChi2);
-        }
-
-        bool matchedU(false), matchedV(false), matchedW(false);
-        unsigned int matchedViews(0);
-
-        if (foundU)
-        {
-            const CartesianVector projVtxU(LArGeometryHelper::ProjectPosition(this->GetPandora(), vtx3D, TPC_VIEW_U));
-            const CartesianVector projEndU(LArGeometryHelper::ProjectPosition(this->GetPandora(), end3D, TPC_VIEW_U));
-
-            if ((endU - vtxU).GetMagnitudeSquared() > m_minTrackLengthSquared &&
-                (projVtxU - vtxU).GetMagnitudeSquared() < std::min(m_vtxDisplacementCutSquared, (projVtxU - endU).GetMagnitudeSquared()) &&
-                (projEndU - endU).GetMagnitudeSquared() < std::min(m_vtxDisplacementCutSquared, (projEndU - vtxU).GetMagnitudeSquared()))
+            if (!found[v])
+                continue;
+        
+            const CartesianVector projVtx{LArGeometryHelper::ProjectPosition(this->GetPandora(), vtx3D, hitTypes[v])};
+            const CartesianVector projEnd{LArGeometryHelper::ProjectPosition(this->GetPandora(), end3D, hitTypes[v])};
+        
+            if ((end[v] - vtx[v]).GetMagnitudeSquared() > m_minTrackLengthSquared &&
+                (projVtx - vtx[v]).GetMagnitudeSquared() < std::min(m_vtxDisplacementCutSquared, (projVtx - end[v]).GetMagnitudeSquared()) &&
+                (projEnd - end[v]).GetMagnitudeSquared() < std::min(m_vtxDisplacementCutSquared, (projEnd - vtx[v]).GetMagnitudeSquared()))
             {
-                matchedU = true;
-                ++matchedViews;
-            }
-        }
-
-        if (foundV)
-        {
-            const CartesianVector projVtxV(LArGeometryHelper::ProjectPosition(this->GetPandora(), vtx3D, TPC_VIEW_V));
-            const CartesianVector projEndV(LArGeometryHelper::ProjectPosition(this->GetPandora(), end3D, TPC_VIEW_V));
-
-            if ((endV - vtxV).GetMagnitudeSquared() > m_minTrackLengthSquared &&
-                (projVtxV - vtxV).GetMagnitudeSquared() < std::min(m_vtxDisplacementCutSquared, (projVtxV - endV).GetMagnitudeSquared()) &&
-                (projEndV - endV).GetMagnitudeSquared() < std::min(m_vtxDisplacementCutSquared, (projEndV - vtxV).GetMagnitudeSquared()))
-            {
-                matchedV = true;
-                ++matchedViews;
-            }
-        }
-
-        if (foundW)
-        {
-            const CartesianVector projVtxW(LArGeometryHelper::ProjectPosition(this->GetPandora(), vtx3D, TPC_VIEW_W));
-            const CartesianVector projEndW(LArGeometryHelper::ProjectPosition(this->GetPandora(), end3D, TPC_VIEW_W));
-
-            if ((endW - vtxW).GetMagnitudeSquared() > m_minTrackLengthSquared &&
-                (projVtxW - vtxW).GetMagnitudeSquared() < std::min(m_vtxDisplacementCutSquared, (projVtxW - endW).GetMagnitudeSquared()) &&
-                (projEndW - endW).GetMagnitudeSquared() < std::min(m_vtxDisplacementCutSquared, (projEndW - vtxW).GetMagnitudeSquared()))
-            {
-                matchedW = true;
+                matched[v] = true;
                 ++matchedViews;
             }
         }
 
         if (matchedViews < 2)
             continue;
-
+        
         if (vtxChi2 + endChi2 < bestChi2)
         {
-            useU = matchedU;
-            useV = matchedV;
-            useW = matchedW;
-
             bestVtx3D = vtx3D;
             bestEnd3D = end3D;
             bestChi2 = vtxChi2 + endChi2;
+            useView = matched;
         }
     }
 
-    if (useU)
-        outputSlidingFitMap.insert(MatchedSlidingFitMap::value_type(iterU->first, iterU->second));
-
-    if (useV)
-        outputSlidingFitMap.insert(MatchedSlidingFitMap::value_type(iterV->first, iterV->second));
-
-    if (useW)
-        outputSlidingFitMap.insert(MatchedSlidingFitMap::value_type(iterW->first, iterW->second));
+    // Store the outputs        
+    for (unsigned int v = 0; v < 3; ++v)
+        if (useView[v])
+            outputSlidingFitMap.insert(MatchedSlidingFitMap::value_type(iterators[v]->first, iterators[v]->second));
 
     if (outputSlidingFitMap.empty())
         throw StatusCodeException(STATUS_CODE_NOT_FOUND);

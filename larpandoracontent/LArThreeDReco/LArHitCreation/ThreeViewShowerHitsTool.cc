@@ -36,6 +36,7 @@ void ThreeViewShowerHitsTool::GetShowerHit3D(const CaloHitVector &caloHitVector1
     const HitType hitType2D(pCaloHit2D->GetHitType());
     const float position2D(pCaloHit2D->GetPositionVector().GetZ());
 
+    //std::cout << "Looking at hit " << pCaloHit2D << " in view " << hitType2D << std::endl;
     for (const CaloHit *const pCaloHit1 : caloHitVector1)
     {
         const CartesianVector &position1(pCaloHit1->GetPositionVector());

@@ -8,6 +8,8 @@
 
 #include "Pandora/AlgorithmHeaders.h"
 
+#include "larpandoracontent/LArHelpers/LArGeometryHelper.h"
+
 #include "larpandoracontent/LArThreeDReco/LArHitCreation/ClearTransverseTrackHitsTool.h"
 
 using namespace pandora;
@@ -35,7 +37,19 @@ void ClearTransverseTrackHitsTool::GetTransverseTrackHit3D(const MatchedSlidingF
             throw StatusCodeException(statusCode);
 
         if (STATUS_CODE_SUCCESS == statusCode)
-            fitPositionList1.push_back(position1);
+        {
+            if (m_useGeometryConstraints)
+            {
+                const LArReadoutVolume &volume{LArGeometryHelper::GetReadoutVolume(this->GetPandora(), *dynamic_cast<const LArCaloHit*>(pCaloHit2D))};
+                if (LArGeometryHelper::IsPoint2DInReadoutVolume(position1, volume, hitType1))
+                    fitPositionList1.push_back(position1);
+//                else
+//                    std::cout << "Extrapolated position not in expected volume" << std::endl;
+            }
+            else
+                fitPositionList1.push_back(position1);
+        }
+
     }
 
     MatchedSlidingFitMap::const_iterator fIter2 = matchedSlidingFitMap.find(hitType2);
@@ -49,7 +63,19 @@ void ClearTransverseTrackHitsTool::GetTransverseTrackHit3D(const MatchedSlidingF
             throw StatusCodeException(statusCode);
 
         if (STATUS_CODE_SUCCESS == statusCode)
-            fitPositionList2.push_back(position2);
+        {
+            if (m_useGeometryConstraints)
+            {
+                const LArReadoutVolume &volume{LArGeometryHelper::GetReadoutVolume(this->GetPandora(), *dynamic_cast<const LArCaloHit*>(pCaloHit2D))};
+                if (LArGeometryHelper::IsPoint2DInReadoutVolume(position2, volume, hitType2))
+                    fitPositionList2.push_back(position2);
+//                else
+//                    std::cout << "Extrapolated position not in expected volume" << std::endl;
+            }
+            else
+                fitPositionList2.push_back(position2);
+        }
+
     }
 
     unsigned int nViews(1);
@@ -62,6 +88,9 @@ void ClearTransverseTrackHitsTool::GetTransverseTrackHit3D(const MatchedSlidingF
         throw StatusCodeException(STATUS_CODE_NOT_FOUND);
 
     this->GetBestPosition3D(hitType1, hitType2, fitPositionList1, fitPositionList2, protoHit);
+
+//    if (nViews == 2)
+//        std::cout << "2 view transverse tracks chi2 = " << protoHit.GetChi2() << std::endl;
 }
 
 } // namespace lar_content

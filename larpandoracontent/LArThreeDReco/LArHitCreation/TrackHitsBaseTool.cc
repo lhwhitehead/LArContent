@@ -10,6 +10,7 @@
 
 #include "larpandoracontent/LArHelpers/LArClusterHelper.h"
 #include "larpandoracontent/LArHelpers/LArGeometryHelper.h"
+#include "larpandoracontent/LArHelpers/LArMCParticleHelper.h"
 #include "larpandoracontent/LArHelpers/LArPfoHelper.h"
 
 #include "larpandoracontent/LArThreeDReco/LArHitCreation/ThreeDHitCreationAlgorithm.h"
@@ -33,6 +34,8 @@ void TrackHitsBaseTool::Run(ThreeDHitCreationAlgorithm *const pAlgorithm, const 
 {
     if (PandoraContentApi::GetSettings(*pAlgorithm)->ShouldDisplayAlgorithmInfo())
         std::cout << "----> Running Algorithm Tool: " << this->GetInstanceName() << ", " << this->GetType() << std::endl;
+
+    m_useGeometryConstraints = pAlgorithm->GetUseDetailedGeometry();
 
     try
     {

@@ -82,8 +82,9 @@ protected:
 
     virtual pandora::StatusCode ReadSettings(const pandora::TiXmlHandle xmlHandle);
 
-    double m_sigmaX2;       ///< The sigmaX squared value, for calculation of chi2 deltaX term
-    double m_chiSquaredCut; ///< The chi squared cut (accept only values below the cut value)
+    double m_sigmaX2;              ///< The sigmaX squared value, for calculation of chi2 deltaX term
+    double m_chiSquaredCut;        ///< The chi squared cut (accept only values below the cut value)
+    bool m_useGeometryConstraints; ///< Use geometry information to constrain hit creation
 };
 
 } // namespace lar_content

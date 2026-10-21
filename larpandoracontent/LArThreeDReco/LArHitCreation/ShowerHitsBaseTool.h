@@ -65,7 +65,6 @@ private:
         pandora::CaloHitVector &outputCaloHitVector) const;
 
     float m_xTolerance;    ///< The x tolerance to use when looking for associated calo hits between views
-    bool m_strictBounding; ///< Whether to apply daughter volume match requirements
 };
 
 } // namespace lar_content
