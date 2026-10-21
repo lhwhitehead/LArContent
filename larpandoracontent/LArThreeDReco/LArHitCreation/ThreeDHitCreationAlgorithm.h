@@ -177,7 +177,14 @@ public:
     void FilterCaloHitsByType(
         const pandora::CaloHitVector &inputCaloHitVector, const pandora::HitType hitType, pandora::CaloHitVector &outputCaloHitVector) const;
 
-private:
+    /**
+     *  @brief  Get the subset of a provided calo hit vector corresponding to a specified hit type
+     *
+     *  @return  Whether detailed geometry information is being used
+     */
+    bool GetUseDetailedGeometry() const;
+
+protected:
     pandora::StatusCode Run();
 
     /**
@@ -281,6 +288,7 @@ private:
     unsigned int m_nHitRefinementIterations; ///< The maximum number of hit refinement iterations
     double m_sigma3DFitMultiplier;           ///< Multiplicative factor: sigmaUVW (same as sigmaHit and sigma2DFit) to sigma3DFit
     double m_iterationMaxChi2Ratio;          ///< Max ratio between current and previous chi2 values to cease iterations
+    bool m_useDetailedGeometry;              ///< Make use of more detailed geometry updates
 };
 
 //------------------------------------------------------------------------------------------------------------------------------------------
@@ -360,6 +368,14 @@ inline void ThreeDHitCreationAlgorithm::ProtoHit::SetPosition3D(const pandora::C
 inline void ThreeDHitCreationAlgorithm::ProtoHit::AddTrajectorySample(const TrajectorySample &trajectorySample)
 {
     m_trajectorySampleVector.push_back(trajectorySample);
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+inline bool ThreeDHitCreationAlgorithm::GetUseDetailedGeometry() const
+{
+    return m_useDetailedGeometry;
 }
 
 } // namespace lar_content

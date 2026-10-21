@@ -30,7 +30,8 @@ ThreeDHitCreationAlgorithm::ThreeDHitCreationAlgorithm() :
     m_slidingFitHalfWindow(10),
     m_nHitRefinementIterations(10),
     m_sigma3DFitMultiplier(0.2),
-    m_iterationMaxChi2Ratio(1.)
+    m_iterationMaxChi2Ratio(1.),
+    m_useDetailedGeometry(false)
 {
 }
 
@@ -462,6 +463,9 @@ const ThreeDHitCreationAlgorithm::TrajectorySample &ThreeDHitCreationAlgorithm::
 
 StatusCode ThreeDHitCreationAlgorithm::ReadSettings(const TiXmlHandle xmlHandle)
 {
+    PANDORA_RETURN_RESULT_IF_AND_IF(
+        STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "UseDetailedGeometry", m_useDetailedGeometry));
+
     AlgorithmToolVector algorithmToolVector;
     PANDORA_RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, XmlHelper::ProcessAlgorithmToolList(*this, xmlHandle, "HitCreationTools", algorithmToolVector));
 
