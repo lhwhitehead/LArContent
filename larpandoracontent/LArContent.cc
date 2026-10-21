@@ -120,6 +120,7 @@
 #include "larpandoracontent/LArThreeDReco/LArHitCreation/ClearLongitudinalTrackHitsTool.h"
 #include "larpandoracontent/LArThreeDReco/LArHitCreation/ClearTransverseTrackHitsTool.h"
 #include "larpandoracontent/LArThreeDReco/LArHitCreation/DeltaRayShowerHitsTool.h"
+#include "larpandoracontent/LArThreeDReco/LArHitCreation/KalmanThreeDTrackHitCreationAlgorithm.h"
 #include "larpandoracontent/LArThreeDReco/LArHitCreation/MultiValuedLongitudinalTrackHitsTool.h"
 #include "larpandoracontent/LArThreeDReco/LArHitCreation/MultiValuedTransverseTrackHitsTool.h"
 #include "larpandoracontent/LArThreeDReco/LArHitCreation/PlaneSolverAlgorithm.h"
@@ -298,6 +299,7 @@
     d("LArTwoViewDeltaRayMatching",             TwoViewDeltaRayMatchingAlgorithm)                                               \
     d("LArOneViewDeltaRayMatching",             OneViewDeltaRayMatchingAlgorithm)                                               \
     d("LArUnattachedDeltaRays",                 UnattachedDeltaRaysAlgorithm)                                                   \
+    d("LArKalmanThreeDTrackHitCreation",        KalmanThreeDTrackHitCreationAlgorithm)                                          \
     d("LArPlaneSolver",                         PlaneSolverAlgorithm)                                                           \
     d("LArThreeDHitCreation",                   ThreeDHitCreationAlgorithm)                                                     \
     d("LArThreeDLongitudinalTracks",            ThreeViewLongitudinalTracksAlgorithm)                                           \
