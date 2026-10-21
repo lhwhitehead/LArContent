@@ -21,9 +21,7 @@ namespace lar_content
 class PlaneSolverHitsTool : public HitCreationBaseTool
 {
 public:
-    /**
-     *  @brief  Default constructor
-     */
+
     PlaneSolverHitsTool();
 
     /**
@@ -38,9 +36,13 @@ public:
         const pandora::CaloHitVector &inputTwoDHits, ProtoHitVector &protoHitVector);
 
 private:
+
     pandora::StatusCode ReadSettings(const pandora::TiXmlHandle xmlHandle);
 
-    std::string m_planeSolverContextName; ///< Name of the LArPlaneContextObject produced by PlaneSolverAlgorithm
+    bool m_tripletsOnly;    ///< Only allow triplets to form protohits
+    bool m_collectionOnly;  ///< Only allow hits with the parent on the collection plane to form protohits
+    bool m_applyChi2Cut;
+    float m_chi2Cut;
 };
 
 } // namespace lar_content

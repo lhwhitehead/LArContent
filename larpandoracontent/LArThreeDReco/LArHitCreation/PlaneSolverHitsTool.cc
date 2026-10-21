@@ -12,26 +12,29 @@
 
 #include "larpandoracontent/LArThreeDReco/LArHitCreation/PlaneSolverHitsTool.h"
 
-#include <unordered_map>
-
 using namespace pandora;
 
 namespace lar_content
 {
 
 PlaneSolverHitsTool::PlaneSolverHitsTool() :
-    m_planeSolverContextName("PlaneContext")
+    m_tripletsOnly{false},
+    m_collectionOnly{false},
+    m_applyChi2Cut{false},
+    m_chi2Cut{std::numeric_limits<float>::max()}
 {
+
 }
 
-//------------------------------------------------------------------------------------------------------------------------------------------
-
 void PlaneSolverHitsTool::Run(ThreeDHitCreationAlgorithm *const pAlgorithm, const pandora::ParticleFlowObject *const pPfo,
-    const pandora::CaloHitVector &inputTwoDHits, ProtoHitVector &protoHitVector)
+        const pandora::CaloHitVector &inputTwoDHits, ProtoHitVector &protoHitVector)
 {
 
-    const LArPlaneContextObject *pPlaneContextObject{
-        dynamic_cast<const LArPlaneContextObject *>(PandoraContentApi::GetEventContextObject(*pAlgorithm, m_planeSolverContextName))};
+    if (PandoraContentApi::GetSettings(*pAlgorithm)->ShouldDisplayAlgorithmInfo())
+        std::cout << "----> Running Algorithm Tool: " << this->GetInstanceName() << ", " << this->GetType() << std::endl;
+
+    const LArPlaneContextObject *pPlaneContextObject{dynamic_cast<const LArPlaneContextObject*>(PandoraContentApi::GetEventContextObject(
+        *pAlgorithm, "PlaneContext"))};
 
     if (!pPlaneContextObject)
         return;
@@ -42,12 +45,18 @@ void PlaneSolverHitsTool::Run(ThreeDHitCreationAlgorithm *const pAlgorithm, cons
         if (!pTriplet)
             continue;
 
-        std::unordered_map<HitType, const CaloHit *> hitTypeToCaloHitMap;
+        if (m_applyChi2Cut && (pTriplet->m_chi2 > m_chi2Cut))
+            continue;
+
+        const HitType hitType{pCaloHit2D->GetHitType()};
+        if (m_collectionOnly && hitType != TPC_VIEW_W)
+            continue;
+
+        std::unordered_map<HitType, const CaloHit*> hitTypeToCaloHitMap;
         hitTypeToCaloHitMap[TPC_VIEW_U] = pTriplet->m_uHit;
         hitTypeToCaloHitMap[TPC_VIEW_V] = pTriplet->m_vHit;
         hitTypeToCaloHitMap[TPC_VIEW_W] = pTriplet->m_wHit;
 
-        const HitType hitType{pCaloHit2D->GetHitType()};
         const HitType hitType1((TPC_VIEW_U == hitType) ? TPC_VIEW_V : (TPC_VIEW_V == hitType) ? TPC_VIEW_W : TPC_VIEW_U);
         const HitType hitType2((TPC_VIEW_U == hitType) ? TPC_VIEW_W : (TPC_VIEW_V == hitType) ? TPC_VIEW_U : TPC_VIEW_V);
 
@@ -63,22 +72,21 @@ void PlaneSolverHitsTool::Run(ThreeDHitCreationAlgorithm *const pAlgorithm, cons
         if (!canUseHit1 && !canUseHit2)
             continue;
 
+        const bool isTriplet{canUseHit1 && canUseHit2};
+        if (m_tripletsOnly && !isTriplet)
+            continue;
+
         CartesianPointVector fitPositions1, fitPositions2;
         if (canUseHit1)
             fitPositions1.emplace_back(hitTypeToCaloHitMap[hitType1]->GetPositionVector());
-        if (canUseHit2)
+        if (canUseHit2) 
             fitPositions2.emplace_back(hitTypeToCaloHitMap[hitType2]->GetPositionVector());
 
-        try
-        {
-            ProtoHit protoHit(pCaloHit2D);
-            this->GetBestPosition3D(hitType1, hitType2, fitPositions1, fitPositions2, protoHit);
-            if (protoHit.IsPositionSet() && (protoHit.GetChi2() < m_chiSquaredCut))
-                protoHitVector.emplace_back(protoHit);
-        }
-        catch (StatusCodeException &)
-        {
-        }
+        ProtoHit protoHit(pCaloHit2D);
+        this->GetBestPosition3D(hitType1, hitType2, fitPositions1, fitPositions2, protoHit);
+
+        if (protoHit.IsPositionSet() && (protoHit.GetChi2() < m_chiSquaredCut))
+            protoHitVector.emplace_back(protoHit);
     }
 }
 
@@ -86,8 +94,10 @@ void PlaneSolverHitsTool::Run(ThreeDHitCreationAlgorithm *const pAlgorithm, cons
 
 StatusCode PlaneSolverHitsTool::ReadSettings(const pandora::TiXmlHandle xmlHandle)
 {
-    PANDORA_RETURN_RESULT_IF_AND_IF(
-        STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "PlaneSolverContextName", m_planeSolverContextName));
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "TripletsOnly", m_tripletsOnly));
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "CollectionOnly", m_collectionOnly));
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "ApplyChi2Cut", m_applyChi2Cut));
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "Chi2Cut", m_chi2Cut));
 
     return HitCreationBaseTool::ReadSettings(xmlHandle);
 }

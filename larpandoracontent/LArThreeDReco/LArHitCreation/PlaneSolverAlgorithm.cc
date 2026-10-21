@@ -204,7 +204,7 @@ void PlaneSolverAlgorithm::Solve() const
                             if ((pHitU && usedHits.count(pHitU)) || (pHitV && usedHits.count(pHitV)) || (pHitW && usedHits.count(pHitW)))
                                 continue;
                         }
-                        if (pass == 1 && pPlaneContextObject->AddHitTriplet(pHitU, pHitV, pHitW))
+                        if (pass == 1 && pPlaneContextObject->AddHitTriplet(pHitU, pHitV, pHitW, triplets[i].m_cost))
                         {
                             usedHits.insert(pHitU);
                             usedHits.insert(pHitV);
@@ -220,7 +220,7 @@ void PlaneSolverAlgorithm::Solve() const
                             continue;
                         if (pass == 1)
                             fallbackTriplets.push_back({triplets[i].m_uIndex, triplets[i].m_vIndex, triplets[i].m_wIndex, triplets[i].m_cost});
-                        if (pass == 2 && pPlaneContextObject->AddHitTriplet(pHitU, pHitV, pHitW))
+                        if (pass == 2 && pPlaneContextObject->AddHitTriplet(pHitU, pHitV, pHitW, triplets[i].m_cost))
                         {
                             usedHits.insert(pHitU);
                             usedHits.insert(pHitV);
@@ -239,7 +239,7 @@ void PlaneSolverAlgorithm::Solve() const
                 if ((pHitU && usedHits.count(pHitU)) || (pHitV && usedHits.count(pHitV)) || (pHitW && usedHits.count(pHitW)))
                     continue;
 
-                pPlaneContextObject->AddHitTriplet(pHitU, pHitV, pHitW);
+                pPlaneContextObject->AddHitTriplet(pHitU, pHitV, pHitW, triplet.m_cost);
             }
         }
     }

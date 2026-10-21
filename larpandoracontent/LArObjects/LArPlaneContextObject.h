@@ -27,6 +27,7 @@ public:
         const pandora::CaloHit *m_uHit;
         const pandora::CaloHit *m_vHit;
         const pandora::CaloHit *m_wHit;
+        float m_chi2;
     };
 
     class HitTripletIterator
@@ -70,7 +71,7 @@ public:
      *
      *  @return boolean indicating whether the triplet was successfully added to the context object (i.e. at most one hit is null)
      */
-    bool AddHitTriplet(const pandora::CaloHit *const pUHit, const pandora::CaloHit *const pVHit, const pandora::CaloHit *const pWHit);
+    bool AddHitTriplet(const pandora::CaloHit *const pUHit, const pandora::CaloHit *const pVHit, const pandora::CaloHit *const pWHit, const float chi2);
 
     /**
      *  @brief  Retrieve the triplet of hits associated with the specified hit. Note that any or all of the hits in this triplet could be null.
