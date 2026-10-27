@@ -288,16 +288,53 @@ PlaneSolverAlgorithm::CostMatrix PlaneSolverAlgorithm::ComputeCostMatrix(
         if (usedHits.count(aHits[i]))
             continue;
 
+        const LArCaloHit *const aLArHit{dynamic_cast<const LArCaloHit*>(aHits[i])};
+        if (aLArHit == nullptr)
+            continue;
+
+        // Get the readout wire and the wires it overlaps with in other views
+        const LArReadoutChannel &viewAHitChannel{LArGeometryHelper::GetReadoutChannel(this->GetPandora(), *aLArHit)};
+        const LArReadoutChannel::ChannelInterval &viewAviewBChannelInterval{viewAHitChannel.GetChannelInterval(viewB)};
+        const LArReadoutChannel::ChannelInterval &viewAviewCChannelInterval{viewAHitChannel.GetChannelInterval(constraintView)};
+
+
         for (int j = 0; j < nB; ++j)
         {
             if (usedHits.count(bHits[j]))
                 continue;
+
+            const LArCaloHit *const bLArHit{dynamic_cast<const LArCaloHit*>(bHits[j])};
+            if (bLArHit == nullptr)
+                continue;
+
+            // Check if this wire in viewB physically overlaps with the wire in viewA
+            const LArReadoutChannel &viewBHitChannel{LArGeometryHelper::GetReadoutChannel(this->GetPandora(), *bLArHit)};
+            const unsigned int viewBChannelId{viewBHitChannel.GetId()};
+            if (viewBChannelId < viewAviewBChannelInterval.first || viewBChannelId > viewAviewBChannelInterval.second)
+                continue;
+
+            // Get the wires in viewC that overlap with this one
+            const LArReadoutChannel::ChannelInterval &viewBviewCChannelInterval{viewBHitChannel.GetChannelInterval(constraintView)};
 
             float bestChi2 = std::numeric_limits<float>::max();
             int bestK{-1};
 
             for (int k = 0; k < nC; ++k)
             {
+                const LArCaloHit *const cLArHit{dynamic_cast<const LArCaloHit*>(cHits[k])};
+                if (cLArHit == nullptr)
+                    continue;
+
+                // Check if this wire in the constraint view physically overlaps with the wire in viewA
+                const unsigned int viewCChannelId{LArGeometryHelper::GetReadoutChannel(this->GetPandora(), *cLArHit).GetId()};
+                if (viewCChannelId < viewAviewCChannelInterval.first || viewCChannelId > viewAviewCChannelInterval.second)
+                    continue;
+
+                // Check if this wire in the constraint view physically overlaps with the wire in viewB
+                if (viewCChannelId < viewBviewCChannelInterval.first || viewCChannelId > viewBviewCChannelInterval.second)
+                    continue;
+
+
                 // We allow the constraint hit to be used for cost calculation even if it's already used (it can validate a doublet match)
                 float chi2{std::numeric_limits<float>::max()};
                 switch (constraintView)
