@@ -7,8 +7,10 @@
  */
 
 #include "Pandora/AlgorithmHeaders.h"
+#include "Geometry/LArReadoutVolume.h"
+#include "Geometry/LArReadoutChannel.h"
 
-#include "larpandoracontent/LArHelpers/LArMCParticleHelper.h"
+#include "larpandoracontent/LArHelpers/LArGeometryHelper.h"
 #include "larpandoracontent/LArHelpers/LArPfoHelper.h"
 #include "larpandoracontent/LArObjects/LArCaloHit.h"
 
@@ -63,10 +65,9 @@ void ShowerHitsBaseTool::GetShowerHits3D(const CaloHitVector &inputTwoDHits, con
     {
         try
         {
-            const unsigned int daughterVolumeId{dynamic_cast<const LArCaloHit *>(pCaloHit2D)->GetDaughterVolumeId()};
             CaloHitVector filteredHits1, filteredHits2;
-            this->FilterCaloHits(pCaloHit2D->GetPositionVector().GetX(), daughterVolumeId, caloHitVector1, filteredHits1);
-            this->FilterCaloHits(pCaloHit2D->GetPositionVector().GetX(), daughterVolumeId, caloHitVector2, filteredHits2);
+            this->FilterCaloHits(pCaloHit2D, caloHitVector1, filteredHits1);
+            this->FilterCaloHits(pCaloHit2D, caloHitVector2, filteredHits2);
 
             ProtoHit protoHit(pCaloHit2D);
             this->GetShowerHit3D(filteredHits1, filteredHits2, protoHit);
@@ -83,22 +84,35 @@ void ShowerHitsBaseTool::GetShowerHits3D(const CaloHitVector &inputTwoDHits, con
 //------------------------------------------------------------------------------------------------------------------------------------------
 
 void ShowerHitsBaseTool::FilterCaloHits(
-    const float x, const unsigned int daughterVolumeId, const CaloHitVector &inputCaloHitVector, CaloHitVector &outputCaloHitVector) const
+    const CaloHit *const pSeedHit, const CaloHitVector &inputCaloHitVector, CaloHitVector &outputCaloHitVector) const
 {
     for (const CaloHit *const pCaloHit : inputCaloHitVector)
     {
+        const float x{pSeedHit->GetPositionVector().GetX()};
+
         if (m_useGeometryConstraints)
         {
+            const LArCaloHit *pLArSeedHit{dynamic_cast<const LArCaloHit *>(pSeedHit)};
             const LArCaloHit *pLArCaloHit{dynamic_cast<const LArCaloHit *>(pCaloHit)};
 
-            if (pLArCaloHit == nullptr)
+            if (pLArSeedHit == nullptr || pLArCaloHit == nullptr)
                 throw StatusCodeException(STATUS_CODE_FAILURE);
 
-            if (daughterVolumeId != pLArCaloHit->GetDaughterVolumeId())
+            // Check the readout volume
+            const LArReadoutVolume &seedHitVolume{LArGeometryHelper::GetReadoutVolume(this->GetPandora(), *pLArSeedHit)};
+            const LArReadoutVolume &caloHitVolume{LArGeometryHelper::GetReadoutVolume(this->GetPandora(), *pLArCaloHit)};
+            if (seedHitVolume.GetId() != caloHitVolume.GetId())
+                continue;           
+
+            // Check the readout channel of the calo hit falls within the range of geometric matches to the seed channel
+            const LArReadoutChannel &seedHitChannel{LArGeometryHelper::GetReadoutChannel(this->GetPandora(), *pLArSeedHit)};
+            const LArReadoutChannel::ChannelInterval &channelInterval{seedHitChannel.GetChannelInterval(pLArCaloHit->GetHitType())};
+            const unsigned int caloHitChannelId{LArGeometryHelper::GetReadoutChannel(this->GetPandora(), *pLArCaloHit).GetId()};
+            if (caloHitChannelId < channelInterval.first || caloHitChannelId > channelInterval.second)
                 continue;
         }
 
-        const float deltaX(pCaloHit->GetPositionVector().GetX() - x);
+        const float deltaX{pCaloHit->GetPositionVector().GetX() - x};
 
         if (std::fabs(deltaX) < m_xTolerance)
             outputCaloHitVector.push_back(pCaloHit);
